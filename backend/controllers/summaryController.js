@@ -1,107 +1,175 @@
 const Case = require("../models/Case");
 const User = require("../models/User");
 const fs = require("fs");
-const pdfParse = require("pdf-parse"); 
-const mammoth = require("mammoth"); 
+let pdfParse;
+try {
+  pdfParse = require("pdf-parse");
+} catch (e) {
+  console.error("pdf-parse import failed");
+}
+const mammoth = require("mammoth");
+const buildLegalPrompt = require("../utils/promptBuilder");
 
 const apiKey = process.env.GEMINI_API_KEY;
 
 exports.generateSummary = async (req, res) => {
-  console.log(">>> Pipeline Started for Case:", req.params.caseId);
   try {
     const { caseId } = req.params;
-    
+
+    console.log("\n===== SUMMARY START =====");
+    console.log("CASE ID:", caseId);
+    console.log("USER ID:", req.user?.id);
+
     const [caseData, userData] = await Promise.all([
       Case.findById(caseId),
       User.findById(req.user.id)
     ]);
 
+    console.log("CASE FOUND:", !!caseData);
+    console.log("USER FOUND:", !!userData);
+
     if (!caseData || caseData.user.toString() !== req.user.id) {
-      console.error(">>> Unauthorized or Case Not Found");
+      console.log("❌ Unauthorized or missing case");
       return res.status(404).json({ message: "Case not found or unauthorized" });
     }
 
-     const selectedModel = userData.aiSettings?.modelPreference === "Gemini 1.5 Pro"
-      ? "gemini-2.5-pro"
-      : "gemini-2.5-flash"; 
-
- const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`;    
-    console.log(">>> Initiating secure AI analysis request...");
+    console.log("DOCUMENT COUNT:", caseData.documents?.length);
 
     if (!caseData.documents || caseData.documents.length === 0) {
-      return res.status(400).json({ message: "No documents found. Please upload evidence first." });
+      console.log("❌ No documents in case");
+      return res.status(400).json({ message: "No documents found" });
     }
 
-    let combinedText = `Case Title: ${caseData.title}\nDescription: ${caseData.description}\n\n`;
+    let combinedText = "";
 
     for (const doc of caseData.documents) {
+      console.log("\n--- Processing Document ---");
+      console.log(doc);
+
       try {
-        const dataBuffer = fs.readFileSync(doc.path);
-        
-        if (doc.filename.toLowerCase().endsWith(".pdf")) {
-          const pdfData = await pdfParse(dataBuffer);
-          combinedText += `--- Content from ${doc.filename} ---\n${pdfData.text}\n\n`;
+        const filePath = doc.filePath || doc.path;
+        const fileName = doc.fileName || doc.filename;
+
+        console.log("PATH:", filePath);
+        console.log("NAME:", fileName);
+
+        if (!filePath || !fs.existsSync(filePath)) {
+          console.log("❌ File missing on disk");
+          continue;
+        }
+
+        const buffer = fs.readFileSync(filePath);
+
+        if (fileName.toLowerCase().endsWith(".pdf")) {
+          console.log("📄 Parsing PDF...");
+
+          if (typeof pdfParse !== "function") {
+            console.log("❌ pdfParse is not a function");
+            continue;
+          }
+
+          const pdf = await pdfParse(buffer);
+          console.log("PDF TEXT LENGTH:", pdf.text.length);
+
+          combinedText += pdf.text + "\n\n";
         } 
-        else if (doc.filename.toLowerCase().endsWith(".docx")) {
-          const docxData = await mammoth.extractRawText({ path: doc.path });
-          combinedText += `--- Content from ${doc.filename} ---\n${docxData.value}\n\n`;
+        else if (fileName.toLowerCase().endsWith(".docx")) {
+          console.log("📄 Parsing DOCX...");
+          const docx = await mammoth.extractRawText({ path: filePath });
+          combinedText += docx.value + "\n\n";
         } 
         else {
-          combinedText += `--- Content from ${doc.filename} ---\n${dataBuffer.toString()}\n\n`;
+          console.log("📄 Parsing TEXT...");
+          combinedText += buffer.toString() + "\n\n";
         }
+
       } catch (err) {
-        console.error(`Error reading ${doc.filename}:`, err.message);
+        console.error("❌ File read error:", err.message);
       }
     }
 
-    const safetyLimit = 25000;
-    const truncatedText = combinedText.length > safetyLimit 
-      ? combinedText.substring(0, safetyLimit) + "... [Text Truncated for Analysis]" 
-      : combinedText;
+    console.log("\nCOMBINED TEXT LENGTH:", combinedText.length);
 
-    console.log(">>> Document Text Extracted. Length:", truncatedText.length);
+    if (!combinedText.trim()) {
+      console.log("❌ No readable content extracted");
+      return res.status(400).json({ message: "No readable content found in documents" });
+    }
 
-    const systemPrompt = "You are a senior legal analyst. Summarize the provided documents into a JSON object with two keys: 'summary' (professional paragraph) and 'keyPoints' (array of 5 strings).";
+    const prompt = buildLegalPrompt(
+      combinedText,
+      userData?.aiSettings || {}
+    );
 
-    const payload = {
-      contents: [{ parts: [{ text: `Analyze these legal documents and provide insights:\n\n${truncatedText}` }] }],
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      generationConfig: {
-        responseMimeType: "application/json"
+    console.log("\nPROMPT LENGTH:", prompt.length);
+
+    const model =
+      userData?.aiSettings?.modelPreference === "Gemini 1.5 Pro"
+        ? "gemini-2.5-pro"
+        : "gemini-2.5-flash";
+
+    console.log("MODEL:", model);
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
       }
-    };
-
-    const response = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    );
 
     const result = await response.json();
-    console.log(">>> Gemini Raw Response received");
+
+    console.log("\nGEMINI RESPONSE:", JSON.stringify(result, null, 2));
 
     if (!response.ok) {
-      console.error(">>> Gemini API Error:", result.error);
-      throw new Error(result.error?.message || "AI Analysis Failed");
+      console.log("❌ Gemini request failed");
+      return res.status(500).json({
+        message: result.error?.message || "AI request failed"
+      });
     }
 
-    let rawOutput = result.candidates[0].content.parts[0].text;
-    
-    rawOutput = rawOutput.replace(/```json/g, "").replace(/```/g, "").trim();
+    let raw = result?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    const aiOutput = JSON.parse(rawOutput);
-    console.log(">>> Successfully parsed AI JSON");
+    console.log("RAW OUTPUT:", raw);
 
-    caseData.aiSummary = aiOutput.summary;
-    caseData.keyPoints = aiOutput.keyPoints;
-    caseData.status = "ready"; 
+    if (!raw) {
+      console.log("❌ Empty AI response");
+      return res.status(500).json({ message: "Empty AI response" });
+    }
+
+    raw = raw.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      console.log("❌ JSON PARSE FAILED");
+      console.log("RAW:", raw);
+      return res.status(500).json({ message: "Invalid JSON from AI" });
+    }
+
+    caseData.aiSummary = parsed.summary;
+    caseData.keyPoints = parsed.keyPoints;
+    caseData.status = "ready";
+
+    if (!caseData.timeline) caseData.timeline = [];
+
+    caseData.timeline.push({
+      type: "ai_generated",
+      message: "AI summary created"
+    });
+
     await caseData.save();
 
-    console.log(">>> Pipeline Complete. DB Updated.");
-    res.status(200).json(caseData);
+    console.log("✅ SUMMARY SUCCESS");
+
+    res.json(caseData);
 
   } catch (error) {
-    console.error("!!! CRITICAL PIPELINE ERROR:", error.message);
+    console.error("🔥 FINAL ERROR:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -109,17 +177,17 @@ exports.generateSummary = async (req, res) => {
 exports.getSummaryByCase = async (req, res) => {
   try {
     const caseData = await Case.findById(req.params.caseId);
-    if (!caseData) return res.status(404).json({ message: "Case not found" });
 
-    if (caseData.user.toString() !== req.user.id) {
-      return res.status(403).json({ message: "Unauthorized access" });
+    if (!caseData) {
+      return res.status(404).json({ message: "Case not found" });
     }
 
-    res.json({ 
-      summary: caseData.aiSummary, 
+    res.json({
+      summary: caseData.aiSummary,
       keyPoints: caseData.keyPoints,
-      status: caseData.status 
+      status: caseData.status
     });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

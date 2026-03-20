@@ -1,26 +1,45 @@
 const jwt = require("jsonwebtoken");
 
+// PROTECT ROUTES
 const protect = (req, res, next) => {
-  const token = req.cookies?.token || (req.headers.authorization && req.headers.authorization.startsWith("Bearer") ? req.headers.authorization.split(" ")[1] : null);
+  let token = null;
+
+  // ✅ Support BOTH cookie + Bearer (merged properly)
+  if (req.cookies?.token) {
+    token = req.cookies.token;
+  } else if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith("Bearer")
+  ) {
+    token = req.headers.authorization.split(" ")[1];
+  }
 
   if (!token) {
-    return res.status(401).json({ message: "Not authorized, session token missing" });
+    return res.status(401).json({
+      message: "Not authorized, token missing"
+    });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; 
+
+    // decoded = { id, role }
+    req.user = decoded;
+
     next();
   } catch (error) {
-    res.status(401).json({ message: "Not authorized, session expired or invalid" });
+    return res.status(401).json({
+      message: "Not authorized, invalid or expired token"
+    });
   }
 };
 
+// ROLE AUTHORIZATION
 const authorize = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ 
-        message: `Role (${req.user.role}) is not authorized.` 
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({
+        message: `Role (${req.user?.role}) is not authorized`
       });
     }
     next();

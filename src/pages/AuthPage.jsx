@@ -18,6 +18,19 @@ function AuthPage() {
 
   const API_URL = 'http://localhost:5000/api/auth';
 
+  const verifySession = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/protected', {
+        method: 'GET',
+        credentials: 'include'
+      });
+
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -34,7 +47,7 @@ function AuthPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        credentials: 'include', 
+        credentials: 'include'
       });
 
       const data = await response.json();
@@ -44,15 +57,23 @@ function AuthPage() {
       }
 
       if (!isLogin) {
-        setIsLogin(true); 
+        setIsLogin(true);
         setSuccessMsg('Account created successfully! Please log in.');
         setPassword('');
       } else {
+        // ✅ VERIFY SESSION BEFORE PROCEEDING
+        const isValidSession = await verifySession();
+
+        if (!isValidSession) {
+          throw new Error('Session not established. Please try again.');
+        }
+
         localStorage.setItem('loggedInUserName', data.name);
         localStorage.setItem('userRole', data.role);
         localStorage.setItem('userId', data._id);
-        
-        navigate('/dashboard'); 
+        localStorage.setItem('isAuthenticated', 'true');
+
+        navigate('/dashboard');
       }
 
     } catch (err) {
@@ -69,22 +90,31 @@ function AuthPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: credentialResponse.credential }),
-        credentials: 'include', 
+        credentials: 'include'
       });
       
       const data = await response.json();
       
-      if (response.ok) {
-        localStorage.setItem('loggedInUserName', data.name);
-        localStorage.setItem('userRole', data.role);
-        localStorage.setItem('userId', data._id);
-        
-        navigate('/dashboard');
-      } else {
-        setError(data.message || 'Google Auth Failed');
+      if (!response.ok) {
+        throw new Error(data.message || 'Google Auth Failed');
       }
+
+      // ✅ VERIFY SESSION
+      const isValidSession = await verifySession();
+
+      if (!isValidSession) {
+        throw new Error('Session not established. Please try again.');
+      }
+
+      localStorage.setItem('loggedInUserName', data.name);
+      localStorage.setItem('userRole', data.role);
+      localStorage.setItem('userId', data._id);
+      localStorage.setItem('isAuthenticated', 'true');
+      
+      navigate('/dashboard');
+
     } catch (err) {
-      setError('Network error during Google login');
+      setError(err.message || 'Network error during Google login');
     }
   };
 

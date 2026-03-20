@@ -1,136 +1,201 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import DashboardLayout from '../components/dashboard/DashboardLayout';
-import { 
-  FaFolderOpen, FaPlus, FaSearch, 
-  FaCheckCircle 
-} from 'react-icons/fa';
-import { MdOutlineSummarize } from 'react-icons/md';
-
-const mockCaseList = [
-  {
-    id: '2025-081',
-    name: 'ABC v. XYZ Corp',
-    status: 'Ready',
-    modified: '2 hours ago',
-  },
-  {
-    id: '2025-079',
-    name: 'Johnson Property Dispute',
-    status: 'Processing',
-    modified: '1 day ago',
-  },
-  {
-    id: '2025-078',
-    name: 'State v. Michaels',
-    status: 'Ready',
-    modified: '3 days ago',
-  },
-  {
-    id: '2025-075',
-    name: 'Patel v. Global Imports',
-    status: 'Ready',
-    modified: '1 week ago',
-  },
-  {
-    id: '2025-072',
-    name: 'Acme Holdings Bankruptcy',
-    status: 'Ready',
-    modified: '2 weeks ago',
-  },
-];
+import React, { useEffect, useState } from "react";
+import DashboardLayout from "../components/dashboard/DashboardLayout";
+import { useNavigate } from "react-router-dom";
 
 function AllCasesPage() {
-  const [currentUser, setCurrentUser] = useState({ name: 'Guest', initials: 'G' });
-  const [searchTerm, setSearchTerm] = useState('');
+
+  const [cases, setCases] = useState([]);
+  const [filteredCases, setFilteredCases] = useState([]);
+  const [search, setSearch] = useState("");
+
+  const navigate = useNavigate();
+
+  const userName = localStorage.getItem("loggedInUserName") || "User";
+  const userInitials = userName.charAt(0).toUpperCase();
 
   useEffect(() => {
-    const savedName = localStorage.getItem('loggedInUserName');
-    if (savedName) {
-      const initials = savedName.split(' ').map(n => n[0]).join('').toUpperCase();
-      setCurrentUser({ name: savedName, initials: initials });
-    }
+    fetchCases();
   }, []);
 
-  const filteredCases = mockCaseList.filter(caseItem =>
-    caseItem.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    caseItem.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const fetchCases = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/cases", {
+        method: "GET",
+        credentials: "include"
+      });
+
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        const priorityOrder = { high: 1, medium: 2, low: 3 };
+
+        const sorted = [...data].sort((a, b) => {
+          const pA = (a.priority || "low").toLowerCase();
+          const pB = (b.priority || "low").toLowerCase();
+          return priorityOrder[pA] - priorityOrder[pB];
+        });
+
+        setCases(sorted);
+        setFilteredCases(sorted);
+      }
+
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const handleSearch = (e) => {
+    const keyword = e.target.value.toLowerCase();
+    setSearch(keyword);
+
+    const filtered = cases.filter((c) =>
+      c.title?.toLowerCase().includes(keyword) ||
+      c.caseNumber?.toLowerCase().includes(keyword)
+    );
+
+    setFilteredCases(filtered);
+  };
 
   return (
-    <DashboardLayout userName={currentUser.name} userInitials={currentUser.initials}>
-      <div className="all-cases-container">
-        
-        <div className="all-cases-header">
-          <h1>
-            <FaFolderOpen /> All Cases
-          </h1>
-          <div className="all-cases-actions">
-            <div className="search-bar">
-              <FaSearch />
-              <input 
-                type="text" 
-                placeholder="Search by name or ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <button className="btn btn-primary">
-              <FaPlus /> <span>New Case</span>
-            </button>
-          </div>
+    <DashboardLayout userName={userName} userInitials={userInitials}>
+
+      <div className="dashboard-section">
+
+        {/* HEADER */}
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "20px"
+        }}>
+          <h2 style={{ fontWeight: "600" }}>All Cases</h2>
+
+          <input
+            type="text"
+            placeholder="Search by name or ID..."
+            value={search}
+            onChange={handleSearch}
+            style={{
+              padding: "10px",
+              borderRadius: "8px",
+              border: "1px solid var(--border-color)",
+              background: "var(--bg-secondary)",
+              color: "var(--text-primary)",
+              width: "260px"
+            }}
+          />
         </div>
 
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Case Name</th>
-                <th>Case ID</th>
-                <th>Status</th>
-                <th>Last Modified</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredCases.map((caseItem) => (
-                <tr key={caseItem.id}>
-                  <td>
-                    <strong>{caseItem.name}</strong>
-                  </td>
-                  <td>{caseItem.id}</td>
-                  <td>
-                    <span 
-                      className={`case-status ${caseItem.status.toLowerCase()}`}
-                    >
-                      {caseItem.status === 'Ready' ? 
-                        <FaCheckCircle /> : 
-                        <MdOutlineSummarize />
-                      }
-                      {caseItem.status}
-                    </span>
-                  </td>
-                  <td>{caseItem.modified}</td>
-                  <td>
-                    <Link 
-                      to={`/case/${caseItem.id}`} 
-                      className="btn btn-secondary btn-small"
-                    >
-                      View
-                    </Link>
-                  </td>
+        {/* CARD */}
+        <div className="case-card">
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
+                  <th style={{ padding: "12px" }}>Case Name</th>
+                  <th style={{ padding: "12px" }}>Case ID</th>
+                  <th style={{ padding: "12px" }}>Status</th>
+                  <th style={{ padding: "12px" }}>Created</th>
+                  <th style={{ padding: "12px" }}>Priority</th>
+                  <th style={{ padding: "12px" }}>Documents</th>
+                  <th style={{ padding: "12px" }}>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {filteredCases.length === 0 && (
-            <div className="no-results">
-              <p>No cases found matching your search.</p>
-            </div>
-          )}
+              </thead>
+
+              <tbody>
+                {filteredCases.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: "center", padding: "20px", color: "var(--text-secondary)" }}>
+                      No cases found
+                    </td>
+                  </tr>
+                ) : (
+                  filteredCases.map((c) => {
+
+                    let p = (c.priority || "low").toLowerCase();
+
+                    let color = "#9ca3af";
+                    if (p === "high") color = "#ef4444";
+                    else if (p === "medium") color = "#f59e0b";
+                    else if (p === "low") color = "#10b981";
+
+                    return (
+                      <tr key={c._id} style={{ borderBottom: "1px solid var(--border-color)" }}>
+
+                        <td style={{ padding: "12px", fontWeight: "500" }}>
+                          {c.title || "Untitled Case"}
+                        </td>
+
+                        <td style={{ padding: "12px", color: "var(--text-secondary)" }}>
+                          {c.caseNumber || "N/A"}
+                        </td>
+
+                        <td style={{ padding: "12px" }}>
+                          <span className="case-status processing">
+                            {c.status || "Processing"}
+                          </span>
+                        </td>
+
+                        <td style={{ padding: "12px", color: "var(--text-secondary)" }}>
+                          {c.createdAt
+                            ? new Date(c.createdAt).toLocaleDateString()
+                            : "N/A"}
+                        </td>
+
+                        <td style={{ padding: "12px", fontWeight: "600", color }}>
+                          {p}
+                        </td>
+
+                        <td style={{ padding: "12px" }}>
+                          {c.documents?.length > 0 ? (
+                            c.documents.map((doc, index) => (
+                              <div key={index} style={{ marginBottom: "8px" }}>
+                                📁 {doc.fileName || doc.filename || "File"}
+                                <br />
+                                <a
+                                  href={`http://localhost:5000/${(doc.filePath || doc.path)?.replace(/\\/g, '/')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{
+                                    color: "#3b82f6",
+                                    fontSize: "12px"
+                                  }}
+                                >
+                                  View
+                                </a>
+                              </div>
+                            ))
+                          ) : (
+                            <span style={{ color: "var(--text-secondary)" }}>
+                              No Docs
+                            </span>
+                          )}
+                        </td>
+
+                        <td style={{ padding: "12px" }}>
+                          <button
+                            className="btn btn-primary btn-small"
+                            onClick={() => navigate(`/case/${c._id}`)}
+                          >
+                            View
+                          </button>
+                        </td>
+
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+
+            </table>
+          </div>
+
         </div>
 
       </div>
+
     </DashboardLayout>
   );
 }

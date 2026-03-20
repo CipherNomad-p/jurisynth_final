@@ -613,7 +613,7 @@
     "path-scurry": "^1.11.1",
     "path-to-regexp": "^8.3.0",
     "path-type": "^4.0.0",
-    "pdf-parse": "^2.4.5",
+    "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^5.4.296",
     "pend": "^1.2.0",
     "performance-now": "^2.1.0",

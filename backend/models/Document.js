@@ -7,14 +7,17 @@ const documentSchema = new mongoose.Schema(
       ref: "Case",
       required: true
     },
+
     fileName: {
       type: String,
       required: true
     },
+
     filePath: {
       type: String,
       required: true
     },
+
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

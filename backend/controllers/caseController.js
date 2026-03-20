@@ -1,88 +1,127 @@
+const mongoose = require("mongoose");
 const Case = require("../models/Case");
 const User = require("../models/User");
 
+// ======================
+// CREATE CASE (DEBUG)
+// ======================
 exports.createCase = async (req, res) => {
   try {
-    const { title, caseNumber, description } = req.body;
+    console.log("CREATE CASE BODY:", req.body);
+    console.log("USER:", req.user?.id);
 
-    const existingCase = await Case.findOne({ caseNumber });
-    if (existingCase) {
-      return res.status(400).json({ 
-        message: "This case ID already exists. Please enter a different Case ID." 
-      });
+    const { title, caseNumber, description, status, priority } = req.body;
+
+    const existing = await Case.findOne({ caseNumber });
+    if (existing) {
+      console.error("Duplicate case number");
+      return res.status(400).json({ message: "Case number already exists" });
+    }
+
+    const validStatuses = ["processing", "ready", "closed"];
+    const validPriorities = ["high", "medium", "low"];
+
+    let formattedPriority = "medium";
+    if (priority) {
+      const p = priority.toLowerCase();
+      if (p.includes("high")) formattedPriority = "high";
+      else if (p.includes("medium")) formattedPriority = "medium";
+      else formattedPriority = "low";
     }
 
     const newCase = await Case.create({
       title,
       caseNumber,
       description,
-      user: req.user.id
+      status: validStatuses.includes(status) ? status : "processing",
+      priority: validPriorities.includes(priority) ? priority : formattedPriority,
+      user: req.user.id,
+      tasks: [{ text: "Upload required documents", status: "pending" }]
     });
+
+    console.log("CASE CREATED:", newCase._id);
 
     res.status(201).json(newCase);
+
   } catch (error) {
+    console.error("CREATE ERROR:", error);
     if (error.code === 11000) {
-        return res.status(400).json({ message: "This case ID already exists. Please enter a different Case ID." });
+      return res.status(400).json({ message: "Duplicate case number" });
     }
     res.status(500).json({ message: error.message });
   }
 };
 
+
+// ======================
+// GET CASES (DEBUG)
+// ======================
 exports.getCases = async (req, res) => {
   try {
-    let query = {};
+    console.log("GET CASES USER:", req.user?.id, "ROLE:", req.user?.role);
 
-    if (req.user.role === 'advocate') {
-      query = { user: req.user.id };
-    }
+    const query = req.user.role === "advocate"
+      ? { user: req.user.id }
+      : {};
 
-    const cases = await Case.find(query)
-      .populate('documents')
+    let cases = await Case.find(query)
+      .populate("documents")
       .sort({ createdAt: -1 });
 
-    let userName = req.user.name;
-    let userRole = req.user.role;
+    console.log("CASES FETCHED:", cases.length);
 
-    if (!userName || !userRole) {
-      const dbUser = await User.findById(req.user.id);
-      if (dbUser) {
-        userName = dbUser.name;
-        userRole = dbUser.role;
-      }
-    }
+    const priorityOrder = { high: 1, medium: 2, low: 3 };
+    cases = cases.sort((a, b) =>
+      (priorityOrder[a.priority || "low"] - priorityOrder[b.priority || "low"])
+    );
 
-    res.json({
-      cases: cases || [],
-      user: {
-        name: userName || "User",
-        role: userRole || "user"
-      }
-    });
+    res.json(cases);
+
   } catch (error) {
+    console.error("GET CASES ERROR:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
+
+// ======================
+// GET CASE BY ID (DEBUG)
+// ======================
 exports.getCaseById = async (req, res) => {
   try {
-    const caseData = await Case.findById(req.params.id).populate('documents');
+    console.log("GET CASE ID:", req.params.id);
+
+    const caseData = await Case.findById(req.params.id).populate("documents");
 
     if (!caseData) {
+      console.error("Case not found");
       return res.status(404).json({ message: "Case not found" });
     }
 
-    if (req.user.role === 'advocate' && caseData.user.toString() !== req.user.id) {
+    if (caseData.user.toString() !== req.user.id) {
+      console.error("Access denied");
       return res.status(403).json({ message: "Access denied" });
     }
 
+    console.log("CASE FETCHED:", caseData._id);
+
     res.json(caseData);
+
   } catch (error) {
+    console.error("GET CASE ERROR:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
+
+// ======================
+// UPDATE CASE (DEBUG)
+// ======================
 exports.updateCase = async (req, res) => {
   try {
+    console.log("UPDATE CASE ID:", req.params.id);
+    console.log("UPDATE BODY:", req.body);
+
     const caseData = await Case.findById(req.params.id);
 
     if (!caseData) {
@@ -90,30 +129,33 @@ exports.updateCase = async (req, res) => {
     }
 
     if (caseData.user.toString() !== req.user.id) {
-      return res.status(403).json({ message: "Access denied. Only the assigned advocate can update this case." });
+      return res.status(403).json({ message: "Access denied" });
     }
 
-    if (req.body.caseNumber && req.body.caseNumber !== caseData.caseNumber) {
-        const duplicate = await Case.findOne({ caseNumber: req.body.caseNumber });
-        if (duplicate) {
-            return res.status(400).json({ message: "This case ID already exists. Please enter a different Case ID." });
-        }
-    }
-
-    const updatedCase = await Case.findByIdAndUpdate(
+    const updated = await Case.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true }
-    ).populate('documents');
+    ).populate("documents");
 
-    res.json(updatedCase);
+    console.log("CASE UPDATED");
+
+    res.json(updated);
+
   } catch (error) {
+    console.error("UPDATE ERROR:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
+
+// ======================
+// DELETE CASE (DEBUG)
+// ======================
 exports.deleteCase = async (req, res) => {
   try {
+    console.log("DELETE CASE ID:", req.params.id);
+
     const caseData = await Case.findById(req.params.id);
 
     if (!caseData) {
@@ -126,42 +168,148 @@ exports.deleteCase = async (req, res) => {
 
     await caseData.deleteOne();
 
+    console.log("CASE DELETED");
+
     res.json({ message: "Case deleted successfully" });
+
   } catch (error) {
+    console.error("DELETE ERROR:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
+
+// ======================
+// UPLOAD DOCUMENT (DEBUG)
+// ======================
 exports.uploadDocument = async (req, res) => {
   try {
+    console.log("UPLOAD HIT");
+    console.log("FILE:", req.file);
+    console.log("PARAM ID:", req.params.id);
+
     if (!req.file) {
-      return res.status(400).json({ message: "No file was uploaded." });
+      console.error("No file uploaded");
+      return res.status(400).json({ message: "No file uploaded" });
     }
 
-    const query = { _id: req.params.id };
-    if (req.user.role === 'advocate') {
-      query.user = req.user.id;
+    const caseData = await Case.findById(req.params.id);
+
+    if (!caseData) {
+      console.error("Case not found");
+      return res.status(404).json({ message: "Case not found" });
     }
 
-    const updatedCase = await Case.findOneAndUpdate(
-      query,
-      { 
-        $push: { 
-          documents: { 
-            filename: req.file.originalname, 
-            path: req.file.path 
-          } 
-        } 
-      },
-      { new: true, runValidators: true }
-    ).populate('documents'); 
-
-    if (!updatedCase) {
-      return res.status(404).json({ message: "Case not found or unauthorized" });
+    if (caseData.user.toString() !== req.user.id) {
+      console.error("Access denied");
+      return res.status(403).json({ message: "Access denied" });
     }
 
-    res.status(200).json(updatedCase);
+    caseData.documents = caseData.documents || [];
+
+    caseData.documents.push({
+      filename: req.file.originalname,
+      path: req.file.path
+    });
+
+    caseData.timeline = caseData.timeline || [];
+
+    caseData.timeline.push({
+      type: "document_uploaded",
+      message: `Uploaded: ${req.file.originalname}`
+    });
+
+    await caseData.save();
+
+    console.log("DOCUMENT SAVED TO CASE");
+
+    res.json(caseData);
+
   } catch (error) {
+    console.error("UPLOAD ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+// ======================
+// ADD PROOF (DEBUG)
+// ======================
+exports.addProof = async (req, res) => {
+  try {
+    console.log("ADD PROOF:", req.body);
+
+    const { text } = req.body;
+    const caseData = await Case.findById(req.params.id);
+
+    caseData.timeline.push({
+      type: "proof_added",
+      message: text
+    });
+
+    caseData.status = "processing";
+
+    await caseData.save();
+
+    res.json(caseData);
+
+  } catch (error) {
+    console.error("ADD PROOF ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+// ======================
+// ADD JUDGEMENT (DEBUG)
+// ======================
+exports.addJudgement = async (req, res) => {
+  try {
+    console.log("ADD JUDGEMENT:", req.body);
+
+    const { judgement } = req.body;
+    const caseData = await Case.findById(req.params.id);
+
+    caseData.timeline.push({
+      type: "judgement_added",
+      message: judgement
+    });
+
+    caseData.status = "ready";
+
+    await caseData.save();
+
+    res.json(caseData);
+
+  } catch (error) {
+    console.error("JUDGEMENT ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+// ======================
+// CLOSE CASE (DEBUG)
+// ======================
+exports.closeCase = async (req, res) => {
+  try {
+    console.log("CLOSE CASE:", req.params.id);
+
+    const caseData = await Case.findById(req.params.id);
+
+    caseData.status = "closed";
+
+    caseData.timeline.push({
+      type: "case_closed",
+      message: "Case closed"
+    });
+
+    await caseData.save();
+
+    res.json(caseData);
+
+  } catch (error) {
+    console.error("CLOSE ERROR:", error);
     res.status(500).json({ message: error.message });
   }
 };

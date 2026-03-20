@@ -6,22 +6,27 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+
     email: {
       type: String,
       required: true,
       unique: true
     },
+
     password: {
       type: String
     },
-   role: {
+
+    role: {
       type: String,
       enum: ["user", "advocate"], 
       default: "user"
     },
+
     googleId: {
       type: String
     },
+
     aiSettings: {
       modelPreference: { 
         type: String, 

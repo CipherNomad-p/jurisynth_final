@@ -7,15 +7,18 @@ const summarySchema = new mongoose.Schema(
       ref: "Case",
       required: true
     },
+
     summaryText: {
       type: String,
       required: true
     },
+
     keyPoints: [
       {
         type: String
       }
     ],
+
     generatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

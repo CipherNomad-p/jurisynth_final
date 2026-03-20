@@ -3,11 +3,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import DashboardLayout from './DashboardLayout';
 import { 
   FaPlus, FaFileUpload, FaMicrophoneAlt, 
-  FaCheckCircle, FaExclamationTriangle, FaArchive, FaTimes 
+  FaCheckCircle, FaExclamationTriangle, FaArchive, FaTimes, FaTrash 
 } from 'react-icons/fa';
 import { MdOutlineSummarize } from 'react-icons/md';
 
-const attentionItems = [
+// ADDED
+import LanguageSwitcher from '../LanguageSwitcher';
+import { useLanguage } from '../../context/LanguageContext';
+
+const attentionItemsStatic = [
   {
     id: 1,
     type: 'contradiction',
@@ -27,6 +31,10 @@ const attentionItems = [
 ];
 
 function Dashboard() {
+
+  const language = useLanguage();
+  const t = language?.t || ((key) => key);
+
   const [currentUser, setCurrentUser] = useState({ name: 'Guest', initials: 'G' });
   const [cases, setCases] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,13 +50,21 @@ function Dashboard() {
     description: ''
   });
 
-  useEffect(() => {
-    const savedName = localStorage.getItem('loggedInUserName');
-    const token = localStorage.getItem('token');
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
-    if (!token) {
+  useEffect(() => {
+    let savedName = localStorage.getItem('loggedInUserName');
+    const isAuthenticated = localStorage.getItem('isAuthenticated');
+
+    if (!isAuthenticated) {
       navigate('/auth');
       return;
+    }
+
+    if (!savedName || savedName === "undefined" || savedName === "null") {
+      savedName = "Guest";
     }
 
     if (savedName) {
@@ -60,19 +76,21 @@ function Dashboard() {
       try {
         const response = await fetch('http://localhost:5000/api/cases', {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
+          credentials: 'include'
         });
 
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.message || 'Failed to fetch cases from server');
+          throw new Error(data.message || t('Failed to fetch cases from server'));
         }
 
-        setCases(data);
+        const safeCases = Array.isArray(data)
+          ? data
+          : data.cases || data.data || [];
+
+        setCases(safeCases);
+
       } catch (err) {
         setError(err.message);
       } finally {
@@ -81,33 +99,31 @@ function Dashboard() {
     };
 
     fetchCases();
-  }, [navigate]);
+  }, [navigate, t]);
 
   const handleCreateCase = async (e) => {
     e.preventDefault();
     setModalError(null);
     setIsSubmitting(true);
 
-    const token = localStorage.getItem('token');
-
     try {
       const response = await fetch('http://localhost:5000/api/cases', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify(formData)
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to create case');
+        throw new Error(data.message || t('Failed to create case'));
       }
 
-      setCases([data, ...cases]);
-      
+      setCases((prev) => [data, ...(Array.isArray(prev) ? prev : [])]);
+
       setIsModalOpen(false);
       setFormData({ title: '', caseNumber: '', description: '' });
 
@@ -118,82 +134,184 @@ function Dashboard() {
     }
   };
 
-  const getStatusDisplay = (status) => {
-    switch(status) {
-      case 'ready':
-        return { text: 'Ready', icon: <FaCheckCircle />, cssClass: 'ready' };
-      case 'closed':
-        return { text: 'Closed', icon: <FaArchive />, cssClass: 'closed' };
-      case 'processing':
-      default:
-        return { text: 'Processing', icon: <MdOutlineSummarize />, cssClass: 'processing' };
+  const handleDeleteCase = async (caseId) => {
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/cases/${caseId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || t('Failed to delete case'));
+      }
+
+      setCases(prev => prev.filter(c => c._id !== caseId));
+      setDeleteConfirmId(null);
+
+    } catch (err) {
+      setDeleteError(err.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
+  const getStageDisplay = (stage) => {
+    switch (stage) {
+      case 'created':
+        return { text: t('Created'), icon: <MdOutlineSummarize />, cssClass: 'processing' };
+      case 'documents_uploaded':
+        return { text: t('Docs Uploaded'), icon: <FaFileUpload />, cssClass: 'processing' };
+      case 'under_review':
+        return { text: t('Under Review'), icon: <MdOutlineSummarize />, cssClass: 'processing' };
+      case 'ai_processed':
+        return { text: t('AI Processed'), icon: <FaCheckCircle />, cssClass: 'ready' };
+      case 'ready':
+        return { text: t('Ready'), icon: <FaCheckCircle />, cssClass: 'ready' };
+      case 'closed':
+        return { text: t('Closed'), icon: <FaArchive />, cssClass: 'closed' };
+      default:
+        return { text: t('Processing'), icon: <MdOutlineSummarize />, cssClass: 'processing' };
+    }
+  };
+
+  const getStatusDisplay = (status) => {
+    switch(status) {
+      case 'ready':
+        return { text: t('Ready'), icon: <FaCheckCircle />, cssClass: 'ready' };
+      case 'closed':
+        return { text: t('Closed'), icon: <FaArchive />, cssClass: 'closed' };
+      default:
+        return { text: t('Processing'), icon: <MdOutlineSummarize />, cssClass: 'processing' };
+    }
+  };
+
+  const sortedCases = [...cases].sort((a, b) => {
+    const aTime = a.timeline?.length
+      ? new Date(a.timeline[a.timeline.length - 1].createdAt)
+      : new Date(a.createdAt);
+
+    const bTime = b.timeline?.length
+      ? new Date(b.timeline[b.timeline.length - 1].createdAt)
+      : new Date(b.createdAt);
+
+    return bTime - aTime;
+  });
+
+  const dynamicAttention = sortedCases
+    .filter(c => c.stage === "documents_uploaded" || c.stage === "ai_processed")
+    .slice(0, 2)
+    .map((c, index) => ({
+      id: index,
+      type: 'warning',
+      icon: <FaExclamationTriangle />,
+      text:
+        c.stage === "documents_uploaded"
+          ? t('Documents uploaded for') + ` "${c.title}"`
+          : t('AI summary ready for') + ` "${c.title}"`,
+      actionText: t('View Case'),
+      link: `/case/${c._id}`
+    }));
+
+  const finalAttentionItems = dynamicAttention.length > 0 ? dynamicAttention : attentionItemsStatic;
+
   return (
     <DashboardLayout userName={currentUser.name} userInitials={currentUser.initials}>
+
+      <LanguageSwitcher />
+
       <div className="dashboard-header">
-        <h1>Welcome back, {currentUser.name}!</h1>
+        <h1>{t('Welcome back')}, {currentUser.name}!</h1>
       </div>
-      
+
       <section className="dashboard-section">
-        <h2>Quick Actions</h2>
+        <h2>{t('Quick Actions')}</h2>
         <div className="quick-actions-grid">
-          <button className="action-card" onClick={() => setIsModalOpen(true)}>
+
+          <button className="action-card" onClick={() => navigate('/createcase')}>
             <span className="action-icon"><FaPlus /></span>
-            Create New Case
+            {t('Create New Case')}
           </button>
-          <button className="action-card">
+
+          <button className="action-card" onClick={() => navigate('/all-cases')}>
             <span className="action-icon"><FaFileUpload /></span>
-            Upload Document
+            {t('Upload Document')}
           </button>
-          <button className="action-card">
+
+          <button className="action-card" onClick={() => navigate('/transcribe')}>
             <span className="action-icon"><FaMicrophoneAlt /></span>
-            Transcribe Audio
+            {t('Transcribe Audio')}
           </button>
+
         </div>
       </section>
 
       <section className="dashboard-section">
-        <h2>Recent Cases</h2>
+        <h2>{t('Recent Cases')}</h2>
         
-        {isLoading && <p style={{ color: 'var(--text-secondary)' }}>Loading your cases...</p>}
+        {isLoading && <p style={{ color: 'var(--text-secondary)' }}>{t('Loading your cases...')}</p>}
         
         {error && (
           <div style={{ color: '#F87171', background: 'rgba(248, 113, 113, 0.1)', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
-            <strong>Error:</strong> {error}
+            <strong>{t('Error')}:</strong> {error}
           </div>
         )}
 
         {!isLoading && !error && cases.length === 0 && (
           <div style={{ padding: '2rem', textAlign: 'center', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>You don't have any cases yet.</p>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>{t("You don't have any cases yet.")}</p>
             <button className="btn btn-primary btn-small" onClick={() => setIsModalOpen(true)}>
-              Create Your First Case
+              {t('Create Your First Case')}
             </button>
           </div>
         )}
 
         {!isLoading && !error && cases.length > 0 && (
           <div className="case-grid">
-            {cases.slice(0, 3).map((caseItem) => {
-              const statusDisplay = getStatusDisplay(caseItem.status);
-              
+            {sortedCases.slice(0, 3).map((caseItem) => {
+
+              const statusDisplay = caseItem.stage
+                ? getStageDisplay(caseItem.stage)
+                : getStatusDisplay(caseItem.status);
+
+              const latestEvent = caseItem.timeline?.length
+                ? caseItem.timeline[caseItem.timeline.length - 1]
+                : null;
+
               return (
                 <div className="case-card" key={caseItem._id}>
                   <h4>{caseItem.title}</h4>
-                  <p>Case #{caseItem.caseNumber}</p>
+                  <p>{t('Case')} #{caseItem.caseNumber}</p>
                   
                   <span className={`case-status ${statusDisplay.cssClass}`}>
                     {statusDisplay.icon} {statusDisplay.text}
                   </span>
                   
                   <p className="case-activity">
-                    Created: {new Date(caseItem.createdAt).toLocaleDateString()}
+                    {latestEvent
+                      ? latestEvent.message
+                      : `${t('Created')}: ${new Date(caseItem.createdAt).toLocaleDateString()}`}
                   </p>
+
+                  {latestEvent && (
+                    <p style={{ fontSize: "12px", color: "gray" }}>
+                      {new Date(latestEvent.createdAt).toLocaleString()}
+                    </p>
+                  )}
+
                   <Link to={`/case/${caseItem._id}`} className="btn btn-secondary btn-small">
-                    View Details
+                    {t('View Details')}
                   </Link>
+
+                  <button
+                    className="btn btn-danger btn-small"
+                    onClick={() => setDeleteConfirmId(caseItem._id)}
+                  >
+                    <FaTrash /> {t('Delete')}
+                  </button>
                 </div>
               );
             })}
@@ -202,9 +320,9 @@ function Dashboard() {
       </section>
 
       <section className="dashboard-section">
-        <h2>Attention Required</h2>
+        <h2>{t('Attention Required')}</h2>
         <div className="attention-widget">
-          {attentionItems.map(item => (
+          {finalAttentionItems.map(item => (
             <div key={item.id} className={`attention-item ${item.type}`}>
               <div className="attention-icon">
                 {item.icon}
@@ -213,85 +331,32 @@ function Dashboard() {
                 {item.text}
               </div>
               <Link to={item.link} className="btn btn-secondary btn-small">
-                {item.actionText}
+                {t(item.actionText)}
               </Link>
             </div>
           ))}
         </div>
       </section>
 
-      {isModalOpen && (
+      {deleteConfirmId && (
         <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-          backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)',
-          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center'
         }}>
-          <div style={{
-            background: 'var(--bg-secondary)', padding: '2rem', borderRadius: '12px',
-            width: '100%', maxWidth: '500px', border: '1px solid var(--border-color)',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.4)', position: 'relative'
-          }}>
-            
-            <button 
-              onClick={() => setIsModalOpen(false)}
-              style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.2rem' }}
-            >
-              <FaTimes />
+          <div style={{ background: '#1e293b', padding: '20px', borderRadius: '10px' }}>
+            <h3>{t('Delete Case?')}</h3>
+            <button onClick={() => handleDeleteCase(deleteConfirmId)}>
+              {isDeleting ? t('Deleting...') : t('Confirm')}
             </button>
-
-            <h2 style={{ color: 'var(--text-primary)', marginBottom: '1.5rem', marginTop: 0 }}>Create New Case</h2>
-
-            {modalError && (
-              <div style={{ color: '#F87171', background: 'rgba(248, 113, 113, 0.1)', padding: '10px', borderRadius: '8px', marginBottom: '15px', fontSize: '0.9rem' }}>
-                {modalError}
-              </div>
-            )}
-
-            <form onSubmit={handleCreateCase}>
-              <div className="form-group">
-                <label>Case Title / Name</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., Smith v. State" 
-                  value={formData.title}
-                  onChange={(e) => setFormData({...formData, title: e.target.value})}
-                  required 
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', marginBottom: '1rem' }}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Case Number</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., 2025-CV-0104" 
-                  value={formData.caseNumber}
-                  onChange={(e) => setFormData({...formData, caseNumber: e.target.value})}
-                  required 
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', marginBottom: '1rem' }}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Description (Optional)</label>
-                <textarea 
-                  rows="3"
-                  placeholder="Brief summary or notes about this case..."
-                  value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', marginBottom: '1.5rem', resize: 'vertical' }}
-                ></textarea>
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                  {isSubmitting ? 'Creating...' : 'Create Case'}
-                </button>
-              </div>
-            </form>
+            <button onClick={() => setDeleteConfirmId(null)}>{t('Cancel')}</button>
+            {deleteError && <p>{deleteError}</p>}
           </div>
         </div>
       )}
