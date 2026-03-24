@@ -14,6 +14,8 @@ import GlobalSearchPage from './pages/GlobalSearchPage';
 import SettingsPage from './pages/SettingsPage'; 
 import CreateCasePage from './pages/CreateCasePage';
 import CrimeInfoPage from './pages/CrimeInfoPage';
+import RecycleBinPage from './pages/RecycleBinPage';
+import TranscribeAudio from './pages/TranscribeAudio';
 
 function App() {
   const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
@@ -31,7 +33,9 @@ function App() {
             <Route path="/search" element={<GlobalSearchPage />} /> 
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/crime-info" element={<CrimeInfoPage />} />
+            <Route path="/recycle-bin" element={<RecycleBinPage />} />
             <Route path="/createcase" element={<CreateCasePage />} />
+            <Route path="/transcribe" element={<TranscribeAudio />} />
             <Route path="/forgot-password" element={<div>Forgot Password Page</div>} />
           </Routes>
         </BrowserRouter>

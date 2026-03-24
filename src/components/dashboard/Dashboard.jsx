@@ -10,6 +10,8 @@ import { MdOutlineSummarize } from 'react-icons/md';
 // ADDED
 import LanguageSwitcher from '../LanguageSwitcher';
 import { useLanguage } from '../../context/LanguageContext';
+import AudioTranscriber from '../shared/AudioTranscriber';
+import DocumentList from '../shared/DocumentList';
 
 const attentionItemsStatic = [
   {
@@ -217,6 +219,14 @@ function Dashboard() {
     }));
 
   const finalAttentionItems = dynamicAttention.length > 0 ? dynamicAttention : attentionItemsStatic;
+  const allDocuments = cases.flatMap((caseItem) =>
+    (caseItem.documents || []).map((doc, index) => ({
+      ...doc,
+      caseId: caseItem._id,
+      caseTitle: caseItem.title,
+      _docKey: `${caseItem._id}-${index}`
+    }))
+  );
 
   return (
     <DashboardLayout userName={currentUser.name} userInitials={currentUser.initials}>
@@ -336,6 +346,17 @@ function Dashboard() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="dashboard-section">
+        <h2>Priority Documents</h2>
+        <div className="case-card">
+          <DocumentList documents={allDocuments.slice(0, 8)} emptyText="No documents uploaded" />
+        </div>
+      </section>
+
+      <section className="dashboard-section">
+        <AudioTranscriber />
       </section>
 
       {deleteConfirmId && (

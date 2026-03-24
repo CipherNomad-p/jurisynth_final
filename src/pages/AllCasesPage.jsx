@@ -3,7 +3,6 @@ import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { useNavigate } from "react-router-dom";
 
 function AllCasesPage() {
-
   const [cases, setCases] = useState([]);
   const [filteredCases, setFilteredCases] = useState([]);
   const [search, setSearch] = useState("");
@@ -38,7 +37,6 @@ function AllCasesPage() {
         setCases(sorted);
         setFilteredCases(sorted);
       }
-
     } catch (error) {
       console.log(error);
     }
@@ -56,18 +54,118 @@ function AllCasesPage() {
     setFilteredCases(filtered);
   };
 
+  const renderFileList = (files, emptyLabel) => {
+    if (!files?.length) {
+      return <span style={{ color: "var(--text-secondary)" }}>{emptyLabel}</span>;
+    }
+
+    return files.map((file, index) => (
+      <div
+        key={index}
+        style={{
+          marginBottom: "8px",
+          maxWidth: "220px"
+        }}
+      >
+        <div
+          title={file.fileName || file.filename || "File"}
+          style={{
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis"
+          }}
+        >
+          File: {file.fileName || file.filename || "File"}
+        </div>
+        <br />
+        <a
+          href={`http://localhost:5000/${(file.filePath || file.path)?.replace(/\\/g, "/")}`}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            color: "#3b82f6",
+            fontSize: "12px"
+          }}
+        >
+          View
+        </a>
+      </div>
+    ));
+  };
+
+  const getProofFileNames = (caseItem) => {
+    const proofMessages = (caseItem.timeline || [])
+      .filter(
+        (entry) =>
+          ["proof_added", "evidence_uploaded"].includes(entry.type) &&
+          typeof entry.message === "string"
+      )
+      .map((entry) => entry.message);
+
+    return proofMessages
+      .map((message) => {
+        const match = message.match(/(?:Proof added|Evidence added|Uploaded):\s*(.+)$/i);
+        return match ? match[1].trim() : null;
+      })
+      .filter(Boolean);
+  };
+
+  const getEvidenceFiles = (caseItem) => {
+    const directEvidence = caseItem.evidence || [];
+    if (directEvidence.length > 0) return directEvidence;
+
+    const proofFileNames = new Set(getProofFileNames(caseItem));
+    const matchedFiles = (caseItem.documents || []).filter((file) => {
+      const fileName = file.fileName || file.filename || "";
+      return Array.from(proofFileNames).some((proofName) =>
+        proofName.toLowerCase() === fileName.toLowerCase() ||
+        proofName.toLowerCase().includes(fileName.toLowerCase()) ||
+        fileName.toLowerCase().includes(proofName.toLowerCase())
+      );
+    });
+
+    if (matchedFiles.length > 0) return matchedFiles;
+
+    const hasProofActivity = (caseItem.timeline || []).some((entry) =>
+      ["proof_added", "evidence_uploaded"].includes(entry.type)
+    );
+
+    if (hasProofActivity && (caseItem.documents || []).length > 0) {
+      const fallbackFile = caseItem.documents[caseItem.documents.length - 1];
+      return fallbackFile ? [fallbackFile] : [];
+    }
+
+    // Final fallback: if the case has uploaded files but no normalized evidence bucket yet,
+    // still expose the most recent file in Evidence so it can be viewed from All Cases.
+    if ((caseItem.documents || []).length > 0) {
+      const fallbackFile = caseItem.documents[caseItem.documents.length - 1];
+      return fallbackFile ? [fallbackFile] : [];
+    }
+
+    return [];
+  };
+
+  const getDocumentFiles = (caseItem) => {
+    const proofFileNames = new Set(getProofFileNames(caseItem));
+    return (caseItem.documents || []).filter((file) => {
+      const fileName = file.fileName || file.filename || "";
+      return !Array.from(proofFileNames).some((proofName) =>
+        proofName.toLowerCase() === fileName.toLowerCase()
+      );
+    });
+  };
+
   return (
     <DashboardLayout userName={userName} userInitials={userInitials}>
-
       <div className="dashboard-section">
-
-        {/* HEADER */}
-        <div style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "20px"
-        }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "20px"
+          }}
+        >
           <h2 style={{ fontWeight: "600" }}>All Cases</h2>
 
           <input
@@ -86,35 +184,35 @@ function AllCasesPage() {
           />
         </div>
 
-        {/* CARD */}
         <div className="case-card">
-
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-
+            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                  <th style={{ padding: "12px" }}>Case Name</th>
-                  <th style={{ padding: "12px" }}>Case ID</th>
-                  <th style={{ padding: "12px" }}>Status</th>
-                  <th style={{ padding: "12px" }}>Created</th>
-                  <th style={{ padding: "12px" }}>Priority</th>
-                  <th style={{ padding: "12px" }}>Documents</th>
-                  <th style={{ padding: "12px" }}>Action</th>
+                  <th style={{ padding: "12px", width: "13%" }}>Case Name</th>
+                  <th style={{ padding: "12px", width: "9%" }}>Case ID</th>
+                  <th style={{ padding: "12px", width: "9%" }}>Status</th>
+                  <th style={{ padding: "12px", width: "10%" }}>Created</th>
+                  <th style={{ padding: "12px", width: "8%" }}>Priority</th>
+                  <th style={{ padding: "12px", width: "20%" }}>Documents</th>
+                  <th style={{ padding: "12px", width: "20%" }}>Evidence</th>
+                  <th style={{ padding: "12px", width: "11%" }}>Action</th>
                 </tr>
               </thead>
 
               <tbody>
                 {filteredCases.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={{ textAlign: "center", padding: "20px", color: "var(--text-secondary)" }}>
+                    <td
+                      colSpan="8"
+                      style={{ textAlign: "center", padding: "20px", color: "var(--text-secondary)" }}
+                    >
                       No cases found
                     </td>
                   </tr>
                 ) : (
                   filteredCases.map((c) => {
-
-                    let p = (c.priority || "low").toLowerCase();
+                    const p = (c.priority || "low").toLowerCase();
 
                     let color = "#9ca3af";
                     if (p === "high") color = "#ef4444";
@@ -123,12 +221,11 @@ function AllCasesPage() {
 
                     return (
                       <tr key={c._id} style={{ borderBottom: "1px solid var(--border-color)" }}>
-
-                        <td style={{ padding: "12px", fontWeight: "500" }}>
+                        <td style={{ padding: "12px", fontWeight: "500", wordBreak: "break-word" }}>
                           {c.title || "Untitled Case"}
                         </td>
 
-                        <td style={{ padding: "12px", color: "var(--text-secondary)" }}>
+                        <td style={{ padding: "12px", color: "var(--text-secondary)", wordBreak: "break-word" }}>
                           {c.caseNumber || "N/A"}
                         </td>
 
@@ -139,39 +236,19 @@ function AllCasesPage() {
                         </td>
 
                         <td style={{ padding: "12px", color: "var(--text-secondary)" }}>
-                          {c.createdAt
-                            ? new Date(c.createdAt).toLocaleDateString()
-                            : "N/A"}
+                          {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "N/A"}
                         </td>
 
                         <td style={{ padding: "12px", fontWeight: "600", color }}>
                           {p}
                         </td>
 
-                        <td style={{ padding: "12px" }}>
-                          {c.documents?.length > 0 ? (
-                            c.documents.map((doc, index) => (
-                              <div key={index} style={{ marginBottom: "8px" }}>
-                                📁 {doc.fileName || doc.filename || "File"}
-                                <br />
-                                <a
-                                  href={`http://localhost:5000/${(doc.filePath || doc.path)?.replace(/\\/g, '/')}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  style={{
-                                    color: "#3b82f6",
-                                    fontSize: "12px"
-                                  }}
-                                >
-                                  View
-                                </a>
-                              </div>
-                            ))
-                          ) : (
-                            <span style={{ color: "var(--text-secondary)" }}>
-                              No Docs
-                            </span>
-                          )}
+                        <td style={{ padding: "12px", verticalAlign: "top" }}>
+                          {renderFileList(getDocumentFiles(c), "No Docs")}
+                        </td>
+
+                        <td style={{ padding: "12px", verticalAlign: "top" }}>
+                          {renderFileList(getEvidenceFiles(c), "No Evidence")}
                         </td>
 
                         <td style={{ padding: "12px" }}>
@@ -182,20 +259,15 @@ function AllCasesPage() {
                             View
                           </button>
                         </td>
-
                       </tr>
                     );
                   })
                 )}
               </tbody>
-
             </table>
           </div>
-
         </div>
-
       </div>
-
     </DashboardLayout>
   );
 }

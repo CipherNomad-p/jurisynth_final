@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
 import {
-  FaHome, FaFolder, FaSearch, FaUpload, FaCog, FaSignOutAlt, FaPlus
+  FaHome, FaFolder, FaSearch, FaUpload, FaCog, FaSignOutAlt, FaTrash
 } from 'react-icons/fa';
 import { FaBalanceScale } from "react-icons/fa";
 
@@ -11,6 +11,11 @@ function Sidebar({ userName, userInitials, openCreateCase }) {
 
   const handleLogout = () => {
     localStorage.removeItem('loggedInUserName');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('token');
     alert('You have been logged out.');
     navigate('/auth');
   };
@@ -92,6 +97,13 @@ function Sidebar({ userName, userInitials, openCreateCase }) {
         <li className="sidebar-user">
           <span className="user-avatar">{userInitials}</span>
           <span className="user-name">{userName}</span>
+        </li>
+
+        <li className="nav-item">
+          <NavLink to="/recycle-bin">
+            <FaTrash />
+            <span className="nav-text">Recycle Bin</span>
+          </NavLink>
         </li>
 
         <li className="nav-item">

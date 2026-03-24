@@ -2,24 +2,23 @@ const mongoose = require("mongoose");
 
 const caseSchema = new mongoose.Schema(
   {
-    title: { 
-      type: String, 
+    title: {
+      type: String,
       required: true,
-      trim: true 
+      trim: true
     },
 
-    caseNumber: { 
-      type: String, 
-      required: true, 
-      unique: true, 
-      trim: true    
+    caseNumber: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true
     },
 
-    description: { 
-      type: String 
+    description: {
+      type: String
     },
 
-    // ✅ From Shrikant
     translations: {
       type: Object,
       default: {}
@@ -31,14 +30,12 @@ const caseSchema = new mongoose.Schema(
       default: "processing"
     },
 
-    // ✅ From Gargi
     priority: {
       type: String,
       enum: ["high", "medium", "low"],
-      default: "medium",
+      default: "medium"
     },
 
-    // ✅ Base AI fields
     aiSummary: {
       type: String,
       default: ""
@@ -49,38 +46,135 @@ const caseSchema = new mongoose.Schema(
       default: []
     },
 
-    // ✅ Hybrid document support (merged properly)
-    documents: [
+    judgement: {
+      type: String,
+      default: ""
+    },
+
+    judgementAt: {
+      type: Date
+    },
+
+    judgementBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+
+    judgementByName: {
+      type: String,
+      default: ""
+    },
+
+    hearings: [
       {
-        // For reference-based system (Shrikant)
-        docId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "Document"
+        number: {
+          type: Number,
+          required: true
         },
-
-        // For embedded system (Pranita + Gargi)
-        filename: String,
-        fileName: String,
-        path: String,
-        fileUrl: String,
-
-        uploadedAt: { 
-          type: Date, 
-          default: Date.now 
+        notes: {
+          type: String,
+          default: ""
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now
+        },
+        createdBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User"
+        },
+        createdByName: {
+          type: String,
+          default: ""
         }
       }
     ],
 
-    // ✅ From Gargi
+    clients: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User"
+        },
+        name: String,
+        email: String,
+        assignedAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
+
+    documents: [
+      {
+        docId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Document"
+        },
+        name: String,
+        filename: String,
+        fileName: String,
+        path: String,
+        fileUrl: String,
+        uploadedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User"
+        },
+        uploadedByName: {
+          type: String,
+          default: ""
+        },
+        priority: {
+          type: String,
+          enum: ["high", "medium", "low"],
+          default: "low"
+        },
+        uploadedAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
+
+    evidence: [
+      {
+        filename: String,
+        fileName: String,
+        path: String,
+        fileUrl: String,
+        uploadedAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
+
+    recycleBin: [
+      {
+        filename: String,
+        fileName: String,
+        path: String,
+        fileUrl: String,
+        source: {
+          type: String,
+          enum: ["documents", "evidence"]
+        },
+        deletedAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
+
     timeline: [
       {
         type: { type: String },
         message: String,
         createdAt: {
           type: Date,
-          default: Date.now,
-        },
-      },
+          default: Date.now
+        }
+      }
     ],
 
     stageHistory: {
@@ -91,9 +185,19 @@ const caseSchema = new mongoose.Schema(
     tasks: [
       {
         text: String,
-        status: String,
-      },
+        status: String
+      }
     ],
+
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+
+    advocateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
 
     user: {
       type: mongoose.Schema.Types.ObjectId,
@@ -104,7 +208,6 @@ const caseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ✅ From Pranita (keep this)
-caseSchema.index({ title: 'text', caseNumber: 'text' });
+caseSchema.index({ title: "text", caseNumber: "text" });
 
 module.exports = mongoose.model("Case", caseSchema);

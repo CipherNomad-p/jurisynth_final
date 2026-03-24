@@ -69,6 +69,7 @@ function AuthPage() {
         }
 
         localStorage.setItem('loggedInUserName', data.name);
+        localStorage.setItem('userEmail', data.email || email);
         localStorage.setItem('userRole', data.role);
         localStorage.setItem('userId', data._id);
         localStorage.setItem('isAuthenticated', 'true');
@@ -107,6 +108,7 @@ function AuthPage() {
       }
 
       localStorage.setItem('loggedInUserName', data.name);
+      localStorage.setItem('userEmail', data.email || '');
       localStorage.setItem('userRole', data.role);
       localStorage.setItem('userId', data._id);
       localStorage.setItem('isAuthenticated', 'true');

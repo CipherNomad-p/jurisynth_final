@@ -11,6 +11,10 @@ const mammoth = require("mammoth");
 const buildLegalPrompt = require("../utils/promptBuilder");
 
 const apiKey = process.env.GEMINI_API_KEY;
+const supportedSummaryExtensions = new Set([".pdf", ".docx", ".txt"]);
+
+const getDocumentName = (doc) => doc?.fileName || doc?.filename || "";
+const getDocumentPath = (doc) => doc?.filePath || doc?.path || "";
 
 exports.generateSummary = async (req, res) => {
   try {
@@ -33,25 +37,41 @@ exports.generateSummary = async (req, res) => {
       return res.status(404).json({ message: "Case not found or unauthorized" });
     }
 
-    console.log("DOCUMENT COUNT:", caseData.documents?.length);
+    const sourceFiles = [
+      ...(caseData.documents || []),
+      ...(caseData.evidence || [])
+    ];
 
-    if (!caseData.documents || caseData.documents.length === 0) {
+    console.log("DOCUMENT COUNT:", caseData.documents?.length);
+    console.log("EVIDENCE COUNT:", caseData.evidence?.length);
+
+    if (sourceFiles.length === 0) {
       console.log("❌ No documents in case");
-      return res.status(400).json({ message: "No documents found" });
+      return res.status(400).json({ message: "No documents or evidence found" });
     }
 
     let combinedText = "";
+    let supportedDocumentCount = 0;
+    let readableDocumentCount = 0;
 
-    for (const doc of caseData.documents) {
+    for (const doc of sourceFiles) {
       console.log("\n--- Processing Document ---");
       console.log(doc);
 
       try {
-        const filePath = doc.filePath || doc.path;
-        const fileName = doc.fileName || doc.filename;
+        const filePath = getDocumentPath(doc);
+        const fileName = getDocumentName(doc);
+        const extension = require("path").extname(fileName || filePath).toLowerCase();
 
         console.log("PATH:", filePath);
         console.log("NAME:", fileName);
+
+        if (!supportedSummaryExtensions.has(extension)) {
+          console.log("Unsupported file for summary:", extension || "unknown");
+          continue;
+        }
+
+        supportedDocumentCount += 1;
 
         if (!filePath || !fs.existsSync(filePath)) {
           console.log("❌ File missing on disk");
@@ -72,15 +92,18 @@ exports.generateSummary = async (req, res) => {
           console.log("PDF TEXT LENGTH:", pdf.text.length);
 
           combinedText += pdf.text + "\n\n";
+          readableDocumentCount += 1;
         } 
         else if (fileName.toLowerCase().endsWith(".docx")) {
           console.log("📄 Parsing DOCX...");
           const docx = await mammoth.extractRawText({ path: filePath });
           combinedText += docx.value + "\n\n";
+          readableDocumentCount += 1;
         } 
-        else {
+        else if (fileName.toLowerCase().endsWith(".txt")) {
           console.log("📄 Parsing TEXT...");
           combinedText += buffer.toString() + "\n\n";
+          readableDocumentCount += 1;
         }
 
       } catch (err) {
@@ -89,6 +112,18 @@ exports.generateSummary = async (req, res) => {
     }
 
     console.log("\nCOMBINED TEXT LENGTH:", combinedText.length);
+
+    if (supportedDocumentCount === 0) {
+      return res.status(400).json({
+        message: "AI summary supports PDF, DOCX, or TXT documents only."
+      });
+    }
+
+    if (readableDocumentCount === 0) {
+      return res.status(400).json({
+        message: "No readable content found. The supported files may be missing or unreadable."
+      });
+    }
 
     if (!combinedText.trim()) {
       console.log("❌ No readable content extracted");

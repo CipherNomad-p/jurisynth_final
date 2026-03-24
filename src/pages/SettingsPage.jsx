@@ -109,6 +109,11 @@ const SettingsPage = () => {
               className="danger-btn" 
               onClick={() => {
                 localStorage.removeItem('token');
+                localStorage.removeItem('loggedInUserName');
+                localStorage.removeItem('userEmail');
+                localStorage.removeItem('userRole');
+                localStorage.removeItem('userId');
+                localStorage.removeItem('isAuthenticated');
                 window.location.reload();
               }}
             >

@@ -21,8 +21,8 @@ const storage = multer.diskStorage({
   }
 });
 
-// File filter
-const fileFilter = (req, file, cb) => {
+// File filter (documents only)
+const documentFileFilter = (req, file, cb) => {
   const allowedMimeTypes = [
     "application/pdf",
     "application/msword",
@@ -44,13 +44,25 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Limits (added for safety)
+// Main upload (used in your route)
 const upload = multer({
   storage,
-  fileFilter,
+  fileFilter: documentFileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB
   }
 });
 
-module.exports = upload;
+// Optional: allow any file type
+const uploadAnyFile = multer({
+  storage,
+  fileFilter: (req, file, cb) => cb(null, true),
+  limits: {
+    fileSize: 25 * 1024 * 1024 // 25MB
+  }
+});
+
+module.exports = {
+  upload,
+  uploadAnyFile
+};

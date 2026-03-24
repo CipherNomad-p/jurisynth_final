@@ -1,43 +1,143 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
-import { FaArrowLeft, FaRobot, FaTimes, FaCheck, FaUpload, FaEye, FaFileAlt } from 'react-icons/fa';
+import {
+  FaArrowLeft,
+  FaRobot,
+  FaTimes,
+  FaCheck,
+  FaUpload,
+  FaSpinner,
+  FaFolderOpen,
+  FaBalanceScale,
+  FaGavel,
+  FaArchive,
+} from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 import { translateCase } from '../services/translationService';
+import DocumentList from '../components/shared/DocumentList';
+import UploadBox from '../components/shared/UploadBox';
 
-const stepsRaw = [
-  "Case Created",
-  "Registered",
-  "Docs Uploaded",
-  "Proof Added",
-  "Judgement",
-  "Case Closed",
+const workflowSteps = [
+  { key: 'created', label: 'Case Created', icon: FaCheck },
+  { key: 'awaiting_documents', label: 'Awaiting Documents', icon: FaFolderOpen },
+  { key: 'documents_uploaded', label: 'Files Uploaded', icon: FaUpload },
+  { key: 'under_review', label: 'Under Review', icon: FaBalanceScale },
+  { key: 'analysis_ready', label: 'Analysis Ready', icon: FaRobot },
+  { key: 'judgement_added', label: 'Hearing', icon: FaGavel },
+  { key: 'closed', label: 'Case Closed', icon: FaArchive },
 ];
+
+const RECYCLE_BIN_STORAGE_KEY = 'jurisynthRecycleBin';
+const CASE_CLIENT_LINKS_STORAGE_KEY = 'jurisynthCaseClientLinks';
 
 function CaseViewPage() {
   const { caseId } = useParams();
+  const navigate = useNavigate();
 
   const { t, lang } = useLanguage() || {};
 
-  const steps = stepsRaw.map(step => t(step));
+  const steps = workflowSteps.map(step => ({ ...step, label: t(step.label) }));
 
   const [caseDetails, setCaseDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [selectedEvidenceFile, setSelectedEvidenceFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [animatedStep, setAnimatedStep] = useState(0);
+  const [summaryError, setSummaryError] = useState('');
+  const [uploadError, setUploadError] = useState('');
+  const [evidenceError, setEvidenceError] = useState('');
+  const [uploadSuccess, setUploadSuccess] = useState('');
+  const [evidenceSuccess, setEvidenceSuccess] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [judgementText, setJudgementText] = useState('');
+  const [judgementError, setJudgementError] = useState('');
+  const [judgementSuccess, setJudgementSuccess] = useState('');
+  const [isSubmittingJudgement, setIsSubmittingJudgement] = useState(false);
+  const [isCreatingNewHearing, setIsCreatingNewHearing] = useState(false);
+  const [closeCaseError, setCloseCaseError] = useState('');
+  const [closeCaseSuccess, setCloseCaseSuccess] = useState('');
+  const [isClosingCase, setIsClosingCase] = useState(false);
+  const [sessionRole, setSessionRole] = useState(localStorage.getItem('userRole') || 'user');
+  const [clientIdentifier, setClientIdentifier] = useState('');
+  const [clientAccessError, setClientAccessError] = useState('');
+  const [clientAccessSuccess, setClientAccessSuccess] = useState('');
+  const [isAssigningClient, setIsAssigningClient] = useState(false);
 
   // 🔥 NEW TRANSLATION STATES
   const [translatedDesc, setTranslatedDesc] = useState(null);
   const [translatedFacts, setTranslatedFacts] = useState(null);
   const [translatedSummary, setTranslatedSummary] = useState(null);
   const [isTranslating, setIsTranslating] = useState(false);
+  const evidenceInputRef = useRef(null);
 
-  const fileInputRef = useRef(null);
+  const getDocumentName = (doc) => doc?.fileName || doc?.filename || '';
+  const canSummarizeDocument = (doc) => /\.(pdf|docx|txt)$/i.test(getDocumentName(doc));
+
+  const persistDeletedFile = useCallback((source, fileName, fileData = {}) => {
+    try {
+      const storedItems = JSON.parse(localStorage.getItem(RECYCLE_BIN_STORAGE_KEY) || '[]');
+      const deletedAt = new Date().toISOString();
+      const nextItems = [
+        ...storedItems.filter(
+          (item) =>
+            !(
+              item.caseId === caseId &&
+              item.source === source &&
+              (item.fileName || item.filename) === fileName
+            )
+        ),
+        {
+          caseId,
+          caseTitle: caseDetails?.title || '',
+          caseNumber: caseDetails?.caseNumber || '',
+          source,
+          filename: fileData.filename || fileData.fileName || fileName,
+          fileName: fileData.fileName || fileData.filename || fileName,
+          path: fileData.path || '',
+          fileUrl: fileData.fileUrl || '',
+          deletedAt
+        }
+      ];
+
+      localStorage.setItem(RECYCLE_BIN_STORAGE_KEY, JSON.stringify(nextItems));
+      return deletedAt;
+    } catch (error) {
+      console.error('Failed to persist recycle bin item:', error);
+      return new Date().toISOString();
+    }
+  }, [caseDetails?.caseNumber, caseDetails?.title, caseId]);
+
+  const persistClientCaseLink = useCallback((identifier) => {
+    try {
+      const storedLinks = JSON.parse(localStorage.getItem(CASE_CLIENT_LINKS_STORAGE_KEY) || '[]');
+      const normalizedIdentifier = identifier.trim().toLowerCase();
+      const nextLinks = [
+        ...storedLinks.filter(
+          (item) => !(item.caseId === caseId && item.clientIdentifier === normalizedIdentifier)
+        ),
+        {
+          caseId,
+          caseTitle: caseDetails?.title || '',
+          caseNumber: caseDetails?.caseNumber || '',
+          clientIdentifier: normalizedIdentifier
+        }
+      ];
+      localStorage.setItem(CASE_CLIENT_LINKS_STORAGE_KEY, JSON.stringify(nextLinks));
+    } catch (error) {
+      console.error('Failed to persist client case link:', error);
+    }
+  }, [caseDetails?.caseNumber, caseDetails?.title, caseId]);
 
   const userName = localStorage.getItem('loggedInUserName') || 'Guest';
+  const storedUserRole = localStorage.getItem('userRole') || 'user';
   const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase() || 'G';
+  const effectiveUserRole = sessionRole || caseDetails?.currentUserRole || storedUserRole;
+  const isAdvocate = effectiveUserRole === 'advocate';
+  const canEditJudgement = isAdvocate;
 
   // 🔥 LANGUAGE MAP
   const mapLang = (lang) => {
@@ -77,6 +177,57 @@ function CaseViewPage() {
     fetchCaseData();
   }, [fetchCaseData]);
 
+  useEffect(() => {
+    const syncSessionRole = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/protected', {
+          method: 'GET',
+          credentials: 'include'
+        });
+
+        const data = await response.json().catch(() => ({}));
+        const backendRole = data?.user?.role;
+
+        if (!response.ok || !backendRole) {
+          return;
+        }
+
+        setSessionRole(backendRole);
+
+        if (storedUserRole !== backendRole) {
+          localStorage.setItem('userRole', backendRole);
+          localStorage.removeItem('loggedInUserName');
+          localStorage.removeItem('userEmail');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('isAuthenticated');
+          navigate('/auth');
+        }
+      } catch (error) {
+        console.error('Failed to sync session role:', error);
+      }
+    };
+
+    syncSessionRole();
+  }, [navigate, storedUserRole]);
+
+  useEffect(() => {
+    if (!caseDetails) return;
+
+    const existingHearings = caseDetails.hearings || [];
+
+    if (isCreatingNewHearing) {
+      setJudgementText('');
+      return;
+    }
+
+    const latestHearing = existingHearings[existingHearings.length - 1];
+    if (latestHearing?.notes) {
+      setJudgementText(latestHearing.notes);
+    } else if (caseDetails?.judgement) {
+      setJudgementText(caseDetails.judgement);
+    }
+  }, [caseDetails, isCreatingNewHearing]);
+
   // 🔥 AUTO TRANSLATION EFFECT
   useEffect(() => {
     if (!caseDetails) return;
@@ -115,70 +266,549 @@ function CaseViewPage() {
   }, [lang, caseDetails]);
 
   const handleFileChange = (e) => {
+    setSelectedFiles(Array.from(e.target.files || []));
+  };
+
+  const handleEvidenceFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+      setSelectedEvidenceFile(e.target.files[0]);
     }
   };
 
   const handleUploadSubmit = async () => {
-    if (!selectedFile) return;
+    if (!selectedFiles.length) return;
     setIsUploading(true);
+    setUploadError('');
+    setUploadSuccess('');
 
     const formData = new FormData();
-    formData.append('file', selectedFile);
+    selectedFiles.forEach((file) => formData.append('files', file));
 
     try {
-      await fetch(`http://localhost:5000/api/cases/${caseId}/documents`, {
+      const response = await fetch(`http://localhost:5000/api/cases/${caseId}/documents`, {
         method: 'POST',
         credentials: 'include',
         body: formData
       });
 
-      setSelectedFile(null);
-      fetchCaseData();
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.message || t('Failed to upload document.'));
+      }
+
+      const data = await response.json();
+      setSelectedFiles([]);
+      setCaseDetails(data);
+      setUploadSuccess(t('Document uploaded successfully.'));
 
     } catch (err) {
       console.error(err);
+      setUploadError(err.message || t('Failed to upload document.'));
     } finally {
       setIsUploading(false);
     }
   };
 
+  const handleDocumentPriorityChange = async (documentItem, priority) => {
+    try {
+      const targetName = documentItem.name || documentItem.fileName || documentItem.filename;
+      const nextDocuments = (caseDetails.documents || []).map((item) => {
+        const currentName = item.name || item.fileName || item.filename;
+        return currentName === targetName ? { ...item, priority } : item;
+      });
+
+      const response = await fetch(`http://localhost:5000/api/cases/${caseId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ documents: nextDocuments })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.message || 'Failed to update document priority.');
+      }
+
+      setCaseDetails(data);
+    } catch (error) {
+      console.error(error);
+      setUploadError(error.message || 'Failed to update document priority.');
+    }
+  };
+
   const handleGenerateAI = async () => {
     setIsAnalyzing(true);
+    setSummaryError('');
     try {
-      await fetch(`http://localhost:5000/api/summary/${caseId}`, {
+      const response = await fetch(`http://localhost:5000/api/summary/${caseId}`, {
         method: 'POST',
         credentials: 'include'
       });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.message || t('Failed to generate AI summary.'));
+      }
 
       fetchCaseData();
 
     } catch (err) {
       console.error(err);
+      setSummaryError(err.message || t('Failed to generate AI summary.'));
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const getStatus = () => {
-    if (isAnalyzing) return { label: t('Processing...'), class: 'status-processing' };
-    if (caseDetails?.status === 'ready') return { label: t('Analysis Ready'), class: 'status-ready' };
-    if (caseDetails?.documents?.length > 0) return { label: t('Pending Analysis'), class: 'status-pending' };
-    return { label: t('Awaiting Documents'), class: 'status-new' };
+  const handleEvidenceUploadSubmit = async () => {
+    if (!selectedEvidenceFile) return;
+    setIsUploadingEvidence(true);
+    setEvidenceError('');
+    setEvidenceSuccess('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedEvidenceFile);
+
+      const uploadResponse = await fetch(`http://localhost:5000/api/cases/${caseId}/documents`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        const data = await uploadResponse.json().catch(() => ({}));
+        throw new Error(data?.message || t('Failed to upload evidence.'));
+      }
+
+      const uploadedCase = await uploadResponse.json();
+      const uploadedDocuments = [...(uploadedCase?.documents || [])];
+      const latestUploadedDocIndex = uploadedDocuments.findIndex(
+        (doc) => (doc.fileName || doc.filename) === selectedEvidenceFile.name
+      );
+      const resolvedIndex = latestUploadedDocIndex === -1
+        ? uploadedDocuments.length - 1
+        : latestUploadedDocIndex;
+      const uploadedFile = uploadedDocuments[resolvedIndex];
+
+      if (!uploadedFile) {
+        throw new Error(t('Uploaded evidence file could not be resolved.'));
+      }
+
+      uploadedDocuments.splice(resolvedIndex, 1);
+
+      const updateResponse = await fetch(`http://localhost:5000/api/cases/${caseId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          documents: uploadedDocuments,
+          evidence: [...(uploadedCase?.evidence || []), uploadedFile],
+          timeline: [
+            ...(uploadedCase?.timeline || []),
+            {
+              type: 'proof_added',
+              message: `Proof added: ${uploadedFile.fileName || uploadedFile.filename || selectedEvidenceFile.name}`,
+              createdAt: new Date().toISOString()
+            }
+          ],
+          status: 'processing'
+        })
+      });
+
+      if (!updateResponse.ok) {
+        const data = await updateResponse.json().catch(() => ({}));
+        throw new Error(data?.message || t('Failed to finalize evidence upload.'));
+      }
+
+      const data = await updateResponse.json();
+      setSelectedEvidenceFile(null);
+      setCaseDetails(data);
+      setEvidenceSuccess(t('Evidence uploaded successfully.'));
+    } catch (err) {
+      console.error(err);
+      setEvidenceError(err.message || t('Failed to upload evidence.'));
+    } finally {
+      setIsUploadingEvidence(false);
+    }
   };
 
-  let targetStep = 0;
-  if (caseDetails) targetStep = 1;
-  if (caseDetails?.documents?.length > 0) targetStep = 2;
-  if (caseDetails?.proofs?.length > 0) targetStep = 3;
-  if (caseDetails?.judgement) targetStep = 4;
-  if (caseDetails?.status === "closed") targetStep = 5;
+  const handleDeleteFile = async (source, fileName) => {
+    setDeleteError('');
+    try {
+      const existingFiles = [...(caseDetails?.[source] || [])];
+      const fileIndex = existingFiles.findIndex(
+        (file) => (file.fileName || file.filename) === fileName
+      );
+      const targetFile = fileIndex >= 0 ? existingFiles[fileIndex] : null;
+
+      let response = await fetch(`http://localhost:5000/api/cases/${caseId}/files/delete`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ source, fileName })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (fileIndex === -1) {
+          throw new Error(data?.message || t('File not found.'));
+        }
+
+        const [removedFile] = existingFiles.splice(fileIndex, 1);
+        const deletedAt = persistDeletedFile(source, fileName, removedFile);
+        const recycleBin = [
+          ...(caseDetails?.recycleBin || []),
+          {
+            filename: removedFile.filename || removedFile.fileName || fileName,
+            fileName: removedFile.fileName || removedFile.filename || fileName,
+            path: removedFile.path || '',
+            fileUrl: removedFile.fileUrl || '',
+            source,
+            deletedAt
+          }
+        ];
+
+        const timeline = [
+          ...(caseDetails?.timeline || []),
+          {
+            type: 'file_deleted',
+            message: `${source === 'documents' ? 'Document' : 'Evidence'} deleted: ${fileName}`,
+            createdAt: new Date().toISOString()
+          }
+        ];
+
+        response = await fetch(`http://localhost:5000/api/cases/${caseId}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            [source]: existingFiles,
+            recycleBin,
+            timeline
+          })
+        });
+
+        const fallbackData = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(fallbackData?.message || data?.message || t('Failed to delete file.'));
+        }
+
+        setCaseDetails(fallbackData);
+        if (source === 'documents') {
+          setUploadSuccess(t('Document moved to recycle bin.'));
+        } else {
+          setEvidenceSuccess(t('Evidence moved to recycle bin.'));
+        }
+        return;
+      }
+
+      if (targetFile) {
+        persistDeletedFile(source, fileName, targetFile);
+      }
+      setCaseDetails(data);
+      if (source === 'documents') {
+        setUploadSuccess(t('Document moved to recycle bin.'));
+      } else {
+        setEvidenceSuccess(t('Evidence moved to recycle bin.'));
+      }
+    } catch (err) {
+      console.error(err);
+      setDeleteError(err.message || t('Failed to delete file.'));
+    }
+  };
+
+  const handleSubmitJudgement = async () => {
+    if (!judgementText.trim()) {
+      setJudgementError(t('Judgement text is required.'));
+      return;
+    }
+
+    setIsSubmittingJudgement(true);
+    setJudgementError('');
+    setJudgementSuccess('');
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/cases/${caseId}/judgement`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ judgement: judgementText.trim() })
+      });
+
+      const rawText = await response.text().catch(() => '');
+      let data = {};
+
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch (parseError) {
+        data = { message: rawText };
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.message || t('Failed to save judgement.'));
+      }
+
+      setCaseDetails(data);
+      setIsCreatingNewHearing(false);
+      setJudgementSuccess(t('Judgement saved successfully.'));
+    } catch (err) {
+      console.error(err);
+      setJudgementError(err.message || t('Failed to save judgement.'));
+    } finally {
+      setIsSubmittingJudgement(false);
+    }
+  };
+
+  const handleCloseCase = async () => {
+    setCloseCaseError('');
+    setCloseCaseSuccess('');
+
+    try {
+      setIsClosingCase(true);
+      const response = await fetch(`http://localhost:5000/api/cases/${caseId}/close`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.message || t('Failed to close case.'));
+      }
+
+      setCaseDetails(data);
+      setCloseCaseSuccess(t('Case closed successfully.'));
+    } catch (err) {
+      console.error(err);
+      setCloseCaseError(err.message || t('Failed to close case.'));
+    } finally {
+      setIsClosingCase(false);
+    }
+  };
+
+  const handleAssignClient = async () => {
+    if (!clientIdentifier.trim()) {
+      setClientAccessError(t('Client name or email is required.'));
+      return;
+    }
+
+    setIsAssigningClient(true);
+    setClientAccessError('');
+    setClientAccessSuccess('');
+
+    try {
+      let response = await fetch(`http://localhost:5000/api/cases/${caseId}/clients`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ clientIdentifier: clientIdentifier.trim() })
+      });
+
+      const data = await response.json().catch(async () => {
+        const rawText = await response.text().catch(() => '');
+        return { message: rawText };
+      });
+
+      if (!response.ok) {
+        const trimmedIdentifier = clientIdentifier.trim();
+        const nextClients = [
+          ...(caseDetails?.clients || []),
+          {
+            name: trimmedIdentifier.includes('@') ? trimmedIdentifier.split('@')[0] : trimmedIdentifier,
+            email: trimmedIdentifier.toLowerCase(),
+            assignedAt: new Date().toISOString()
+          }
+        ];
+
+        const nextTimeline = [
+          ...(caseDetails?.timeline || []),
+          {
+            type: 'client_assigned',
+            message: `Client assigned: ${trimmedIdentifier}`,
+            createdAt: new Date().toISOString()
+          }
+        ];
+
+        response = await fetch(`http://localhost:5000/api/cases/${caseId}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            clients: nextClients,
+            timeline: nextTimeline
+          })
+        });
+
+        const fallbackData = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(fallbackData?.message || data?.message || t('Failed to link client to case.'));
+        }
+
+        setCaseDetails(fallbackData);
+        setClientIdentifier('');
+        persistClientCaseLink(trimmedIdentifier);
+        setClientAccessSuccess(t('Client linked to this case successfully.'));
+        return;
+      }
+
+      setCaseDetails(data);
+      setClientIdentifier('');
+      persistClientCaseLink(clientIdentifier.trim());
+      setClientAccessSuccess(t('Client linked to this case successfully.'));
+    } catch (err) {
+      console.error(err);
+      setClientAccessError(err.message || t('Failed to link client to case.'));
+    } finally {
+      setIsAssigningClient(false);
+    }
+  };
+
+  const getLatestTimelineEvent = (type) =>
+    caseDetails?.timeline?.some((entry) => entry.type === type);
+
+  const getHearingCount = () =>
+    (caseDetails?.timeline || []).filter((entry) => entry?.type === 'judgement_added').length;
+
+  const formatTimelineMessage = (entry) => {
+    if (!entry) return t('Case updated');
+
+    switch (entry.type) {
+      case 'document_uploaded':
+        return entry.message || t('Document uploaded');
+      case 'evidence_uploaded':
+        return entry.message || t('Evidence uploaded');
+      case 'proof_added':
+        return entry.message || t('Proof added');
+      case 'ai_generated':
+        return t('AI summary generated');
+      case 'judgement_added':
+        return `${t('Hearing')} ${Math.max(1, getHearingCount())}`;
+      case 'case_closed':
+        return t('Case closed');
+      default:
+        return entry.message || t('Case updated');
+    }
+  };
+
+  const getCaseProgress = () => {
+    const hasDocuments = (caseDetails?.documents?.length || 0) > 0;
+    const hasEvidence = (caseDetails?.evidence?.length || 0) > 0;
+    const hasSupportingFiles = hasDocuments || hasEvidence;
+    const hasAiSummary = Boolean(caseDetails?.aiSummary?.trim());
+    const hasKeyPoints = (caseDetails?.keyPoints?.length || 0) > 0;
+    const hearingCount = getHearingCount();
+    const hasJudgement = hearingCount > 0;
+    const isClosed = caseDetails?.status === 'closed' || caseDetails?.stage === 'closed';
+    const hasReadyStatus = caseDetails?.status === 'ready' || caseDetails?.stage === 'ready';
+    const hasAiGenerated = getLatestTimelineEvent('ai_generated');
+    const hasProof = getLatestTimelineEvent('proof_added');
+
+    if (isAnalyzing) {
+      return {
+        key: 'under_review',
+        label: t('Analyzing'),
+        description: t('AI is currently scanning the latest case material.'),
+        className: 'status-review',
+        tone: 'review'
+      };
+    }
+
+    if (isClosed) {
+      return {
+        key: 'closed',
+        label: t('Closed'),
+        description: t('This case has been marked closed.'),
+        className: 'status-closed',
+        tone: 'closed'
+      };
+    }
+
+    if (hasJudgement) {
+      return {
+        key: 'judgement_added',
+        label: `${t('Hearing')} ${hearingCount}`,
+        description: `${t('Hearing')} ${hearingCount} ${t('has been recorded for this case.')}`,
+        className: 'status-judgement',
+        tone: 'judgement'
+      };
+    }
+
+    if (hasReadyStatus || hasAiSummary || hasKeyPoints || hasAiGenerated) {
+      return {
+        key: 'analysis_ready',
+        label: t('Analysis Ready'),
+        description: t('AI summary and legal points are available for review.'),
+        className: 'status-ready',
+        tone: 'ready'
+      };
+    }
+
+    if (hasSupportingFiles && hasProof) {
+      return {
+        key: 'under_review',
+        label: t('Under Review'),
+        description: t('Documents and proof notes are in review before final analysis.'),
+        className: 'status-review',
+        tone: 'review'
+      };
+    }
+
+    if (hasSupportingFiles) {
+      return {
+        key: 'documents_uploaded',
+        label: t('Files Uploaded'),
+        description: t('Documents or evidence files are available and waiting for analysis.'),
+        className: 'status-uploaded',
+        tone: 'uploaded'
+      };
+    }
+
+    return {
+      key: 'awaiting_documents',
+      label: t('Awaiting Documents'),
+      description: t('Upload supporting files to move this case into review.'),
+      className: 'status-awaiting',
+      tone: 'awaiting'
+    };
+  };
+
+  const status = getCaseProgress();
+  const activeStepIndex = workflowSteps.findIndex((step) => step.key === status.key);
+  const targetStep = activeStepIndex === -1 ? 0 : activeStepIndex;
+  const visibleJudgement = caseDetails?.judgement?.trim() || '';
+  const hearings = caseDetails?.hearings || [];
+  const canAddHearing = canEditJudgement;
+  const currentHearingNumber = hearings.length > 0 ? hearings.length : Math.max(1, getHearingCount());
+  const activeHearingNumber = isCreatingNewHearing ? currentHearingNumber + 1 : currentHearingNumber;
+  const hearingLabel = `${t('Hearing')} ${activeHearingNumber}`;
+  const hasSummarizableDocuments = [
+    ...(caseDetails?.documents || []),
+    ...(caseDetails?.evidence || [])
+  ].some(canSummarizeDocument);
 
   useEffect(() => {
     if (!caseDetails) return;
 
-    let i = 0;
+    let i = -1;
 
     const interval = setInterval(() => {
       i++;
@@ -196,8 +826,6 @@ function CaseViewPage() {
     </DashboardLayout>
   );
 
-  const status = getStatus();
-
   return (
     <DashboardLayout userName={userName} userInitials={userInitials}>
       <div className="case-view-container">
@@ -211,18 +839,19 @@ function CaseViewPage() {
             <div className="header-title">
               <div className="title-row">
                 <h1>{caseDetails.title}</h1>
-                <span className={`status-badge ${status.class}`}>{status.label}</span>
+                <span className={`status-badge ${status.className}`}>{status.label}</span>
               </div>
               <span className="case-number-badge">
                 {t('Case')} #{caseDetails.caseNumber}
               </span>
             </div>
 
-            {caseDetails.documents?.length > 0 && (
-              <button 
-                className={`generate-ai-btn ${isAnalyzing ? 'pulse' : ''}`} 
-                onClick={handleGenerateAI} 
-                disabled={isAnalyzing}
+            {((caseDetails.documents?.length || 0) > 0 || (caseDetails.evidence?.length || 0) > 0) && (
+              <button
+                className={`generate-ai-btn ${isAnalyzing ? 'pulse' : ''}`}
+                onClick={handleGenerateAI}
+                disabled={isAnalyzing || !hasSummarizableDocuments}
+                title={hasSummarizableDocuments ? '' : t('AI summary currently supports PDF, DOCX, and TXT files only.')}
               >
                 <FaRobot /> {isAnalyzing ? t('Analyzing...') : t('Generate AI Insights')}
               </button>
@@ -232,38 +861,33 @@ function CaseViewPage() {
 
         <div className="case-view-grid">
           <div className="main-content-area">
-
-            <div className="case-card">
-              <h3>{t('Case Timeline')}</h3>
-              {steps.map((step, index) => (
-                <div key={index} style={{ display: "flex", alignItems: "center", marginBottom: "25px" }}>
-                  <div style={{
-                    width: "16px",
-                    height: "16px",
-                    borderRadius: "50%",
-                    background: index <= animatedStep ? "#00d4ff" : "#374151",
-                    boxShadow: index === animatedStep ? "0 0 18px #00d4ff" : "none",
-                    marginRight: "15px",
-                    transition: "all 0.4s ease"
-                  }} />
-                  <span style={{
-                    fontSize: "15px",
-                    color: index <= animatedStep ? "#fff" : "#9ca3af",
-                    fontWeight: index <= animatedStep ? "600" : "400"
-                  }}>
-                    {step}
-                  </span>
+            <div className={`case-card case-status-panel case-status-panel-${status.tone}`}>
+              <div className="status-panel-head">
+                <div>
+                  <p className="status-panel-label">{t('Current Status')}</p>
+                  <h3>{status.label}</h3>
                 </div>
-              ))}
-            </div>
-
-            <div className="case-card">
-              <h3>{t('Case Description')}</h3>
-              <p>
-                {isTranslating
-                  ? t('Translating...')
-                  : translatedDesc || caseDetails.description || t('No description provided.')}
-              </p>
+                <span className={`status-badge ${status.className}`}>{status.label}</span>
+              </div>
+              {closeCaseSuccess && (
+                <div className="upload-success-banner status-panel-feedback">{closeCaseSuccess}</div>
+              )}
+              {closeCaseError && (
+                <div className="summary-error-banner status-panel-feedback">{closeCaseError}</div>
+              )}
+              <p className="status-panel-description">{status.description}</p>
+              {isAdvocate && status.key !== 'closed' && (
+                <div className="status-panel-actions">
+                  <button
+                    type="button"
+                    className="close-case-btn"
+                    onClick={handleCloseCase}
+                    disabled={isClosingCase}
+                  >
+                    <FaArchive /> {isClosingCase ? t('Closing...') : t('Close Case')}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="case-card">
@@ -275,18 +899,183 @@ function CaseViewPage() {
                   {(translatedFacts || caseDetails.keyPoints || []).map((p, i) => (
                     <li key={i}>{p}</li>
                   ))}
+                  {!(translatedFacts || caseDetails.keyPoints || []).length && (
+                    <li>{t('No AI-generated key facts yet.')}</li>
+                  )}
                 </ul>
               )}
             </div>
 
             <div className="case-card">
               <h3>{t('AI Legal Analysis')}</h3>
+              {summaryError && (
+                <div className="summary-error-banner">{summaryError}</div>
+              )}
               <p className="analysis-text">
                 {isAnalyzing
-                  ? t('Analyzing...')
+                  ? (
+                    <span className="analysis-inline-status">
+                      <FaSpinner className="spin-icon" />
+                      {t('Analyzing...')}
+                    </span>
+                  )
                   : isTranslating
                   ? t('Translating...')
                   : translatedSummary || caseDetails.aiSummary || t('Pending analysis...')}
+              </p>
+            </div>
+
+            {(canEditJudgement || hearings.length > 0 || visibleJudgement) && (
+              <div className="case-card">
+                <div className="judgement-card-head">
+                  <h3>{t('Hearing Notes')}</h3>
+                  {(hearings.length > 0 || visibleJudgement) && (
+                    <span className="status-badge status-judgement">{hearingLabel}</span>
+                  )}
+                </div>
+
+                {judgementSuccess && (
+                  <div className="upload-success-banner">{judgementSuccess}</div>
+                )}
+                {judgementError && (
+                  <div className="summary-error-banner">{judgementError}</div>
+                )}
+
+                {(hearings.length > 0 ? hearings : visibleJudgement ? [{
+                  number: currentHearingNumber,
+                  notes: visibleJudgement,
+                  createdByName: caseDetails?.judgementByName,
+                  createdAt: caseDetails?.judgementAt
+                }] : []).map((hearingItem) => (
+                  <div key={`hearing-${hearingItem.number}`} className="judgement-summary-box">
+                    <p className="judgement-meta">
+                      <strong>{t('Hearing')} {hearingItem.number}</strong>
+                    </p>
+                    <p className="judgement-summary-text">{hearingItem.notes}</p>
+                    <p className="judgement-meta">
+                      {hearingItem?.createdByName
+                        ? `${t('Recorded by')}: ${hearingItem.createdByName}`
+                        : t('Hearing notes available for review.')}
+                      {hearingItem?.createdAt
+                        ? ` • ${new Date(hearingItem.createdAt).toLocaleString()}`
+                        : ''}
+                    </p>
+                  </div>
+                ))}
+
+                {canEditJudgement && (
+                  <div className="judgement-editor">
+                    {canAddHearing && !isCreatingNewHearing && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-small"
+                        onClick={() => {
+                          setIsCreatingNewHearing(true);
+                          setJudgementText('');
+                          setJudgementError('');
+                          setJudgementSuccess('');
+                        }}
+                        style={{ marginBottom: '12px' }}
+                      >
+                        + {t('Add Hearing')}
+                      </button>
+                    )}
+                    <label htmlFor="judgementText" className="judgement-label">
+                      {hearingLabel}
+                    </label>
+                    <textarea
+                      id="judgementText"
+                      className="judgement-textarea"
+                      rows="5"
+                      value={judgementText}
+                      onChange={(e) => setJudgementText(e.target.value)}
+                      placeholder={t('Enter hearing notes for this case...')}
+                    />
+                    <button
+                      type="button"
+                      className="generate-ai-btn judgement-submit-btn"
+                      onClick={handleSubmitJudgement}
+                      disabled={isSubmittingJudgement}
+                    >
+                      <FaGavel /> {isSubmittingJudgement ? t('Saving...') : hearings.length > 0 || isCreatingNewHearing ? `${t('Save')} ${hearingLabel}` : hearingLabel}
+                    </button>
+                    {isCreatingNewHearing && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-small"
+                        onClick={() => {
+                          setIsCreatingNewHearing(false);
+                          const existingHearings = caseDetails?.hearings || [];
+                          const latestHearing = existingHearings[existingHearings.length - 1];
+                          setJudgementText(latestHearing?.notes || caseDetails?.judgement || '');
+                        }}
+                        style={{ marginTop: '10px' }}
+                      >
+                        {t('Cancel')}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {!canEditJudgement && visibleJudgement && (
+                  <div className="judgement-summary-box">
+                    <p className="judgement-meta">{t('Read-only for your role.')}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isAdvocate && (
+              <div className="case-card">
+                <h3>{t('Client Access')}</h3>
+                {clientAccessSuccess && (
+                  <div className="upload-success-banner">{clientAccessSuccess}</div>
+                )}
+                {clientAccessError && (
+                  <div className="summary-error-banner">{clientAccessError}</div>
+                )}
+
+                <div className="client-access-card">
+                  <div className="client-access-form">
+                    <input
+                      type="text"
+                      className="judgement-textarea client-access-input"
+                      value={clientIdentifier}
+                      onChange={(e) => setClientIdentifier(e.target.value)}
+                      placeholder={t('Enter client name or email to link this case')}
+                    />
+                    <button
+                      type="button"
+                      className="generate-ai-btn judgement-submit-btn"
+                      onClick={handleAssignClient}
+                      disabled={isAssigningClient}
+                    >
+                      <FaCheck /> {isAssigningClient ? t('Linking...') : t('Link Client')}
+                    </button>
+                  </div>
+
+                  <div className="linked-clients-list">
+                    {(caseDetails.clients || []).length > 0 ? (
+                      caseDetails.clients.map((client, index) => (
+                        <div key={`${client.email}-${index}`} className="linked-client-chip">
+                          <span>{client.name || t('Client')}</span>
+                          <small>{client.email}</small>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="case-activity-empty">{t('No clients linked yet.')}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="case-card">
+              <h3>{t('Case Description')}</h3>
+              <p>
+                {isTranslating
+                  ? t('Translating...')
+                  : translatedDesc || caseDetails.description || t('No description provided.')}
               </p>
             </div>
 
@@ -294,54 +1083,126 @@ function CaseViewPage() {
 
           <div className="sidebar-area">
             <div className="case-card">
-              <h3>{t('Documents & Evidence')}</h3>
+              <h3>{t('Documents')}</h3>
+              {deleteError && (
+                <div className="summary-error-banner">{deleteError}</div>
+              )}
+              {uploadSuccess && (
+                <div className="upload-success-banner">{uploadSuccess}</div>
+              )}
+              {uploadError && (
+                <div className="summary-error-banner">{uploadError}</div>
+              )}
 
-              <div className="uploaded-docs-list">
-                {caseDetails.documents?.map((doc, idx) => (
-                  <div key={idx} className="doc-list-item">
-                    <div className="doc-info">
-                      <FaFileAlt className="doc-icon" />
-                      <span>{doc.fileName || doc.filename}</span>
-                    </div>
-                    <a 
-                      href={`http://localhost:5000/${(doc.filePath || doc.path)?.replace(/\\/g, '/')}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="view-btn"
-                    >
-                      <FaEye /> {t('View')}
-                    </a>
-                  </div>
-                ))}
-              </div>
+              <DocumentList
+                documents={caseDetails.documents || []}
+                emptyText={t('No documents uploaded')}
+                canEditPriority={isAdvocate}
+                onPriorityChange={handleDocumentPriorityChange}
+                onDelete={(doc) => handleDeleteFile('documents', doc.name || doc.fileName || doc.filename)}
+              />
 
               <hr className="divider" />
 
-              {!selectedFile ? (
-                <button className="select-file-btn" onClick={() => fileInputRef.current.click()}>
-                  <FaUpload /> {t('Add Document')}
+              <UploadBox
+                selectedFiles={selectedFiles}
+                onFileChange={handleFileChange}
+                onSubmit={handleUploadSubmit}
+                onCancel={() => setSelectedFiles([])}
+                isUploading={isUploading}
+                buttonLabel={t('Upload Documents')}
+              />
+
+            </div>
+
+            <div className="case-card">
+              <h3>{t('Evidence')}</h3>
+              {deleteError && (
+                <div className="summary-error-banner">{deleteError}</div>
+              )}
+              {evidenceSuccess && (
+                <div className="upload-success-banner">{evidenceSuccess}</div>
+              )}
+              {evidenceError && (
+                <div className="summary-error-banner">{evidenceError}</div>
+              )}
+
+              <DocumentList
+                documents={caseDetails.evidence || []}
+                emptyText={t('No evidence uploaded yet.')}
+                onDelete={(doc) => handleDeleteFile('evidence', doc.name || doc.fileName || doc.filename)}
+              />
+
+              <hr className="divider" />
+
+              {!selectedEvidenceFile ? (
+                <button className="select-file-btn select-evidence-btn" onClick={() => evidenceInputRef.current.click()}>
+                  <FaUpload /> {t('Add Evidence')}
                 </button>
               ) : (
                 <div className="upload-confirmation-ui">
-                  <p className="file-preview">📄 {selectedFile.name}</p>
+                  <p className="file-preview">ðŸ“„ {selectedEvidenceFile.name}</p>
                   <div className="confirmation-actions">
-                    <button className="confirm-btn" onClick={handleUploadSubmit} disabled={isUploading}>
-                      <FaCheck /> {isUploading ? t('Uploading...') : t('Confirm')}
+                    <button className="confirm-btn" onClick={handleEvidenceUploadSubmit} disabled={isUploadingEvidence}>
+                      <FaCheck /> {isUploadingEvidence ? t('Uploading...') : t('Confirm')}
                     </button>
-                    <button className="cancel-btn" onClick={() => setSelectedFile(null)}>
+                    <button className="cancel-btn" onClick={() => setSelectedEvidenceFile(null)}>
                       <FaTimes />
                     </button>
                   </div>
                 </div>
               )}
 
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                style={{ display: 'none' }} 
-                onChange={handleFileChange} 
-                accept=".pdf,.docx,.txt" 
+              <input
+                type="file"
+                ref={evidenceInputRef}
+                style={{ display: 'none' }}
+                onChange={handleEvidenceFileChange}
+                accept="*/*"
               />
+            </div>
+
+            <div className="case-card">
+              <h3>{t('Case Timeline')}</h3>
+              <div className="case-activity-list">
+                {(caseDetails.timeline?.length ? [...caseDetails.timeline].reverse() : []).slice(0, 6).map((item, index) => (
+                  <div key={`${item.type}-${index}`} className="case-activity-item">
+                    <div className="case-activity-dot" />
+                    <div>
+                      <p className="case-activity-message">{formatTimelineMessage(item)}</p>
+                      <span className="case-activity-time">
+                        {item.createdAt ? new Date(item.createdAt).toLocaleString() : t('Recently')}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {!(caseDetails.timeline?.length) && (
+                  <p className="case-activity-empty">{t('No activity recorded yet.')}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="case-card">
+              <h3>{t('Case Workflow')}</h3>
+              <div className="case-progress-list">
+                {steps.map((step, index) => {
+                  const StepIcon = step.icon;
+                  const stateClass = index < animatedStep
+                    ? 'done'
+                    : index === animatedStep
+                    ? 'active'
+                    : 'upcoming';
+
+                  return (
+                    <div key={step.key} className={`case-progress-item ${stateClass}`}>
+                      <div className="case-progress-marker">
+                        <StepIcon />
+                      </div>
+                      <span className="case-progress-text">{step.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
