@@ -4234,6 +4234,7 @@ table td .btn-small:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-bottom: 12px;
 }
 
 /* Each row */
@@ -4319,7 +4320,21 @@ table td .btn-small:hover {
   box-sizing: border-box;
 }
 
-.doc-list-item * {
-  white-space: nowrap;
+.divider {
+  border: 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  margin: 12px 0 14px;
+}
+
+.upload-box {
+  margin-top: 6px;
+}
+
+.select-file-btn.select-evidence-btn {
+  margin-top: 6px;
+}
+
+.upload-confirmation-ui {
+  margin-top: 6px;
 }
 
