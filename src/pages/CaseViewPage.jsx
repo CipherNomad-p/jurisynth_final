@@ -160,7 +160,7 @@ function CaseViewPage() {
 
   const fetchCaseData = useCallback(async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/cases/${caseId}`, {
+      const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
         method: 'GET',
         credentials: 'include'
       });
@@ -182,7 +182,7 @@ function CaseViewPage() {
   useEffect(() => {
     const syncSessionRole = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/protected', {
+        const response = await fetch('http://65.0.240.171:5000/api/protected', {
           method: 'GET',
           credentials: 'include'
         });
@@ -287,7 +287,7 @@ function CaseViewPage() {
     selectedFiles.forEach((file) => formData.append('files', file));
 
     try {
-      const response = await fetch(`http://localhost:5000/api/cases/${caseId}/documents`, {
+      const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/documents`, {
         method: 'POST',
         credentials: 'include',
         body: formData
@@ -319,7 +319,7 @@ function CaseViewPage() {
         return currentName === targetName ? { ...item, priority } : item;
       });
 
-      const response = await fetch(`http://localhost:5000/api/cases/${caseId}`, {
+      const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
         method: 'PUT',
         credentials: 'include',
         headers: {
@@ -344,7 +344,7 @@ function CaseViewPage() {
     setIsAnalyzing(true);
     setSummaryError('');
     try {
-      const response = await fetch(`http://localhost:5000/api/summary/${caseId}`, {
+      const response = await fetch(`http://65.0.240.171:5000/api/summary/${caseId}`, {
         method: 'POST',
         credentials: 'include'
       });
@@ -375,7 +375,7 @@ function CaseViewPage() {
       const formData = new FormData();
       formData.append('file', selectedEvidenceFile);
 
-      const uploadResponse = await fetch(`http://localhost:5000/api/cases/${caseId}/documents`, {
+      const uploadResponse = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/documents`, {
         method: 'POST',
         credentials: 'include',
         body: formData
@@ -402,7 +402,7 @@ function CaseViewPage() {
 
       uploadedDocuments.splice(resolvedIndex, 1);
 
-      const updateResponse = await fetch(`http://localhost:5000/api/cases/${caseId}`, {
+      const updateResponse = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
         method: 'PUT',
         credentials: 'include',
         headers: {
@@ -449,7 +449,7 @@ function CaseViewPage() {
       );
       const targetFile = fileIndex >= 0 ? existingFiles[fileIndex] : null;
 
-      let response = await fetch(`http://localhost:5000/api/cases/${caseId}/files/delete`, {
+      let response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/files/delete`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -488,7 +488,7 @@ function CaseViewPage() {
           }
         ];
 
-        response = await fetch(`http://localhost:5000/api/cases/${caseId}`, {
+        response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
           method: 'PUT',
           credentials: 'include',
           headers: {
@@ -542,7 +542,7 @@ function CaseViewPage() {
     setJudgementSuccess('');
 
     try {
-      const response = await fetch(`http://localhost:5000/api/cases/${caseId}/judgement`, {
+      const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/judgement`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -581,7 +581,7 @@ function CaseViewPage() {
 
     try {
       setIsClosingCase(true);
-      const response = await fetch(`http://localhost:5000/api/cases/${caseId}/close`, {
+      const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/close`, {
         method: 'POST',
         credentials: 'include'
       });
@@ -613,7 +613,7 @@ function CaseViewPage() {
     setClientAccessSuccess('');
 
     try {
-      let response = await fetch(`http://localhost:5000/api/cases/${caseId}/clients`, {
+      let response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/clients`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -658,7 +658,7 @@ function CaseViewPage() {
     setClientAccessSuccess(''); // added by cipherNomad
     setVerifiedClient(null); // added by cipherNomad
     try { // added by cipherNomad
-      const response = await fetch(`http://localhost:5000/api/auth/clients/verify?identifier=${encodeURIComponent(clientCode.trim())}`, { // added by cipherNomad
+      const response = await fetch(`http://65.0.240.171:5000/api/auth/clients/verify?identifier=${encodeURIComponent(clientCode.trim())}`, { // added by cipherNomad
         method: 'GET', // added by cipherNomad
         credentials: 'include' // added by cipherNomad
       }); // added by cipherNomad

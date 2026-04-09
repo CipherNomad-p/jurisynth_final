@@ -1,5 +1,5 @@
-const API_BASE = "http://localhost:5000/api/notifications"; // added by cipherNomad
-const AUTH_BASE = "http://localhost:5000/api/auth";
+const API_BASE = "http://65.0.240.171:5000/api/notifications"; // added by cipherNomad
+const AUTH_BASE = "http://65.0.240.171:5000/api/auth";
 let notificationsEndpointUnavailable = false; // added by cipherNomad
 
 const parseApiResponse = async (response) => { // added by cipherNomad

@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:8000/translate";
+const API_URL = "http://65.0.240.171:8000/translate";
 
 let activeController = null;
 

@@ -130,7 +130,7 @@ app.post("/api/auth/logout", (req, res) => {
     secure: false,
     expires: new Date(0),
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "none",
   });
 
   res.status(200).json({ message: "Session revoked" });

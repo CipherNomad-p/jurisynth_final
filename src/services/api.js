@@ -1,7 +1,7 @@
 export const updateUserSettings = async (payload) => {
     const token = localStorage.getItem('token');
 
-    const response = await fetch('http://localhost:5000/api/users/settings', {
+    const response = await fetch('http://65.0.240.171:5000/api/users/settings', {
         method: 'PATCH',
         headers: {
             'Content-Type': 'application/json',

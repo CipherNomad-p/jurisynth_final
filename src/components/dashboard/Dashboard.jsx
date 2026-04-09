@@ -76,7 +76,7 @@ function Dashboard() {
 
     const fetchCases = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/cases', {
+        const response = await fetch('http://65.0.240.171:5000/api/cases', {
           method: 'GET',
           credentials: 'include'
         });
@@ -109,7 +109,7 @@ function Dashboard() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/cases', {
+      const response = await fetch('http://65.0.240.171:5000/api/cases', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -141,7 +141,7 @@ function Dashboard() {
     setDeleteError(null);
 
     try {
-      const response = await fetch(`http://localhost:5000/api/cases/${caseId}`, {
+      const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
         method: 'DELETE',
         credentials: 'include'
       });

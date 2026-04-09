@@ -18,7 +18,7 @@ function AllCasesPage() {
 
   const fetchCases = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/cases", {
+      const res = await fetch("http://65.0.240.171:5000/api/cases", {
         method: "GET",
         credentials: "include"
       });
@@ -79,7 +79,7 @@ function AllCasesPage() {
         </div>
         <br />
         <a
-          href={`http://localhost:5000/${(file.filePath || file.path)?.replace(/\\/g, "/")}`}
+          href={`http://65.0.240.171:5000/${(file.filePath || file.path)?.replace(/\\/g, "/")}`}
           target="_blank"
           rel="noreferrer"
           style={{

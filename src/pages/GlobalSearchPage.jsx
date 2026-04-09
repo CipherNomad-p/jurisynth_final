@@ -51,7 +51,7 @@ function GlobalSearchPage() {
     const timeoutId = setTimeout(async () => {
       try {
         setIsSearching(true);
-        const casesResponse = await fetch('http://localhost:5000/api/cases', {
+        const casesResponse = await fetch('http://65.0.240.171:5000/api/cases', {
           credentials: 'include'
         });
         const allCases = await casesResponse.json().catch(() => []);

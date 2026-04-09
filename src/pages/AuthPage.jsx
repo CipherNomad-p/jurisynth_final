@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { FaScaleBalanced, FaArrowRight } from 'react-icons/fa6';
 import { GoogleLogin } from '@react-oauth/google';
-
+import apiconfig from '../config/apiConfig'
 function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const navigate = useNavigate();
@@ -13,14 +13,14 @@ function AuthPage() {
   const [role, setRole] = useState('advocate');
 
   const [error, setError] = useState(null);
-  const [successMsg, setSuccessMsg] = useState(null); 
+  const [successMsg, setSuccessMsg] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const API_URL = 'http://localhost:5000/api/auth';
+  const API_URL = 'http://65.0.240.171:5000/api/auth';
 
   const verifySession = async (token) => {
     try {
-      const res = await fetch('http://localhost:5000/api/protected', {
+      const res = await fetch('http://65.0.240.171:5000/api/protected', {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -42,8 +42,8 @@ function AuthPage() {
     localStorage.removeItem('clientCode'); // added by cipherNomad
 
     const endpoint = isLogin ? `${API_URL}/login` : `${API_URL}/register`;
-    const payload = isLogin 
-      ? { email, password } 
+    const payload = isLogin
+      ? { email, password }
       : { name, email, password, role };
 
     try {
@@ -103,9 +103,9 @@ function AuthPage() {
         body: JSON.stringify({ token: credentialResponse.credential }),
         credentials: 'include'
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.message || 'Google Auth Failed');
       }
@@ -127,7 +127,7 @@ function AuthPage() {
       localStorage.setItem('userId', data._id);
       localStorage.setItem('isAuthenticated', 'true');
       if (data.clientCode) localStorage.setItem('clientCode', data.clientCode); // added by cipherNomad
-      
+
       navigate('/dashboard');
 
     } catch (err) {
@@ -146,7 +146,7 @@ function AuthPage() {
           <FaScaleBalanced className="branding-icon" />
           <h2>The AI advantage for modern legal teams.</h2>
           <p>
-            Join thousands of legal professionals automating summaries, tracking 
+            Join thousands of legal professionals automating summaries, tracking
             contradictions, and organizing cases securely.
           </p>
         </div>
@@ -155,14 +155,14 @@ function AuthPage() {
       <div className="auth-form-panel">
         <div className="auth-card">
           <h2>{isLogin ? 'Welcome back' : 'Create an account'}</h2>
-          
+
           {error && <div className="auth-alert error">{error}</div>}
           {successMsg && <div className="auth-alert success">{successMsg}</div>}
 
           <div className="google-login-container">
-            <GoogleLogin 
-              onSuccess={handleGoogleSuccess} 
-              onError={() => setError('Google widget failed to load.')} 
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setError('Google widget failed to load.')}
               theme="outline"
               size="large"
               text="continue_with"
@@ -206,9 +206,9 @@ function AuthPage() {
 
             {isLogin && (
               <div style={{ textAlign: 'right', marginBottom: '1rem' }}>
-                 <Link to="/forgot-password" style={{ fontSize: '0.85rem', color: 'var(--primary-color)' }}>
-                   Forgot password?
-                 </Link>
+                <Link to="/forgot-password" style={{ fontSize: '0.85rem', color: 'var(--primary-color)' }}>
+                  Forgot password?
+                </Link>
               </div>
             )}
 

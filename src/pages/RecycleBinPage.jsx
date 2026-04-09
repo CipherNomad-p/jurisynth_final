@@ -13,7 +13,7 @@ function RecycleBinPage() {
 
   const fetchCases = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/cases', {
+      const response = await fetch('http://65.0.240.171:5000/api/cases', {
         method: 'GET',
         credentials: 'include'
       });
@@ -53,7 +53,7 @@ function RecycleBinPage() {
 
   const handleRestore = async (caseId, fileName, source) => {
     try {
-      let response = await fetch(`http://localhost:5000/api/cases/${caseId}/files/restore`, {
+      let response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/files/restore`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -105,7 +105,7 @@ function RecycleBinPage() {
           }
         ];
 
-        response = await fetch(`http://localhost:5000/api/cases/${caseId}`, {
+        response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
           method: 'PUT',
           credentials: 'include',
           headers: {

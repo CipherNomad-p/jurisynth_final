@@ -16,7 +16,7 @@ function UploadPage() {
 
   const fetchCases = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/cases");
+      const res = await fetch("http://65.0.240.171:5000/api/cases");
       const data = await res.json();
 
       if (Array.isArray(data)) {
@@ -39,7 +39,7 @@ function UploadPage() {
 
     try {
       const res = await fetch(
-        `http://localhost:5000/api/cases/upload/${caseId}`, // ✅ correct route
+        `http://65.0.240.171:5000/api/cases/upload/${caseId}`, // ✅ correct route
         {
           method: "POST",
           body: formData,

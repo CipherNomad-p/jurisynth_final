@@ -21,14 +21,14 @@ function ProfilePage() { // added by cipherNomad
   useEffect(() => { // added by cipherNomad
     const loadProfile = async () => { // added by cipherNomad
       try { // added by cipherNomad
-        let response = await fetch('http://localhost:5000/api/auth/me', { // added by cipherNomad
+        let response = await fetch('http://65.0.240.171:5000/api/auth/me', { // added by cipherNomad
           method: 'GET', // added by cipherNomad
           headers: { ...authHeaders }, // added by cipherNomad
           credentials: 'include' // added by cipherNomad
         }); // added by cipherNomad
         let data = await response.json().catch(() => ({})); // added by cipherNomad
         if (response.status === 404) { // added by cipherNomad
-          response = await fetch('http://localhost:5000/api/protected', { // added by cipherNomad
+          response = await fetch('http://65.0.240.171:5000/api/protected', { // added by cipherNomad
             method: 'GET', // added by cipherNomad
             headers: { ...authHeaders }, // added by cipherNomad
             credentials: 'include' // added by cipherNomad
@@ -46,7 +46,7 @@ function ProfilePage() { // added by cipherNomad
         } // added by cipherNomad
         setProfile(data); // added by cipherNomad
         if (data?.role === 'user' && !data?.clientCode) { // added by cipherNomad
-          const ensureResponse = await fetch('http://localhost:5000/api/auth/client-code/ensure', { // added by cipherNomad
+          const ensureResponse = await fetch('http://65.0.240.171:5000/api/auth/client-code/ensure', { // added by cipherNomad
             method: 'POST', // added by cipherNomad
             headers: { ...authHeaders }, // added by cipherNomad
             credentials: 'include' // added by cipherNomad
@@ -65,7 +65,7 @@ function ProfilePage() { // added by cipherNomad
           localStorage.removeItem('clientCode'); // added by cipherNomad
         } // added by cipherNomad
         if (data?.role === 'advocate') { // added by cipherNomad
-          const clientsResponse = await fetch('http://localhost:5000/api/auth/clients', { // added by cipherNomad
+          const clientsResponse = await fetch('http://65.0.240.171:5000/api/auth/clients', { // added by cipherNomad
             method: 'GET', // added by cipherNomad
             headers: { ...authHeaders }, // added by cipherNomad
             credentials: 'include' // added by cipherNomad
@@ -101,7 +101,7 @@ function ProfilePage() { // added by cipherNomad
   const handleCreateClient = async () => { // added by cipherNomad
     try { // added by cipherNomad
       setClientActionMessage(''); // added by cipherNomad
-      const response = await fetch('http://localhost:5000/api/auth/clients', { // added by cipherNomad
+      const response = await fetch('http://65.0.240.171:5000/api/auth/clients', { // added by cipherNomad
         method: 'POST', // added by cipherNomad
         credentials: 'include', // added by cipherNomad
         headers: { 'Content-Type': 'application/json', ...authHeaders }, // added by cipherNomad
@@ -129,7 +129,7 @@ function ProfilePage() { // added by cipherNomad
     try { // added by cipherNomad
       setIsRefreshingCode(true); // added by cipherNomad
       setError(''); // added by cipherNomad
-      const response = await fetch('http://localhost:5000/api/auth/client-code/ensure', { // added by cipherNomad
+      const response = await fetch('http://65.0.240.171:5000/api/auth/client-code/ensure', { // added by cipherNomad
         method: 'POST', // added by cipherNomad
         headers: { ...authHeaders }, // added by cipherNomad
         credentials: 'include' // added by cipherNomad
