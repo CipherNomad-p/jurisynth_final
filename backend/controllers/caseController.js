@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Case = require("../models/Case");
 const User = require("../models/User");
+const Notification = require("../models/Notification"); // added by cipherNomad
 
 const serializeCaseForUser = (caseData, role, userId = null) => {
   if (!caseData) return caseData;
@@ -26,7 +27,7 @@ const normalizeObjectId = (value) => {
 };
 
 const getCaseAdvocateId = (caseData) => normalizeObjectId(caseData?.advocateId || caseData?.user);
-const getCaseUserId = (caseData) => normalizeObjectId(caseData?.userId);
+const getCaseUserId = (caseData) => normalizeObjectId(caseData?.userId) || normalizeObjectId(caseData?.clientId); // added by cipherNomad
 
 const isAssignedAdvocate = (caseData, reqUser) => (
   Boolean(caseData && reqUser && reqUser.role === "advocate") &&
@@ -102,12 +103,31 @@ exports.createCase = async (req, res) => {
     if (req.user.role === "advocate") {
       baseCasePayload.user = req.user.id;
       baseCasePayload.advocateId = req.user.id;
+      if (req.body.clientId) { // added by cipherNomad
+        baseCasePayload.clientId = req.body.clientId; // added by cipherNomad
+        baseCasePayload.userId = req.body.clientId; // added by cipherNomad
+        baseCasePayload.clients = baseCasePayload.clients || []; // added by cipherNomad
+        baseCasePayload.clients.push({ // added by cipherNomad
+          user: req.body.clientId, // added by cipherNomad
+          assignedAt: new Date() // added by cipherNomad
+        }); // added by cipherNomad
+      } // added by cipherNomad
     } else {
       baseCasePayload.user = req.user.id;
       baseCasePayload.userId = req.user.id;
     }
 
     const newCase = await Case.create(baseCasePayload);
+
+    if (baseCasePayload.userId && req.user.role === "advocate") { // added by cipherNomad
+      await Notification.create({ // added by cipherNomad
+        recipientId: baseCasePayload.userId, // added by cipherNomad
+        recipientType: "client", // added by cipherNomad
+        type: "case_created", // added by cipherNomad
+        message: `New case created: ${title}`, // added by cipherNomad
+        relatedId: newCase._id // added by cipherNomad
+      }); // added by cipherNomad
+    } // added by cipherNomad
 
     console.log("CASE CREATED:", newCase._id);
 
@@ -143,6 +163,7 @@ exports.getCases = async (req, res) => {
       query = {
         $or: [
           { userId: req.user.id },
+          { clientId: req.user.id }, // added by cipherNomad
           { userId: { $exists: false }, "clients.user": req.user.id }
         ]
       };
@@ -368,6 +389,33 @@ exports.uploadDocument = async (req, res) => {
 
     await caseData.save();
 
+    const uploadedNames = incomingFiles
+      .map((file) => file?.originalname)
+      .filter(Boolean)
+      .join(", ");
+    const documentMessage = `${req.user.role === "advocate" ? "Advocate" : "Client"} uploaded ${uploadedNames || "new file(s)"}`;
+
+    if (req.user.role === "advocate") {
+      const targetClientId = caseData.userId || caseData.clientId || caseData.clients?.[0]?.user;
+      if (targetClientId) {
+        await Notification.create({
+          recipientId: targetClientId,
+          recipientType: "client",
+          type: "document_uploaded",
+          message: documentMessage,
+          relatedId: caseData._id
+        });
+      }
+    } else if (caseData.advocateId) {
+      await Notification.create({
+        recipientId: caseData.advocateId,
+        recipientType: "advocate",
+        type: "document_uploaded",
+        message: documentMessage,
+        relatedId: caseData._id
+      });
+    }
+
     console.log("DOCUMENT SAVED TO CASE");
 
     const updatedCase = await Case.findById(caseId);
@@ -562,7 +610,7 @@ exports.closeCase = async (req, res) => {
 
 exports.assignClientToCase = async (req, res) => {
   try {
-    const { clientIdentifier } = req.body;
+    const { clientIdentifier, clientId, clientCode } = req.body; // added by cipherNomad
     const caseData = await Case.findById(req.params.id);
 
     if (!caseData) {
@@ -577,30 +625,43 @@ exports.assignClientToCase = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    if (!clientIdentifier || !clientIdentifier.trim()) {
-      return res.status(400).json({ message: "Client name or email is required" });
+    if (!clientIdentifier && !clientId && !clientCode) { // added by cipherNomad
+      return res.status(400).json({ message: "Client identifier is required" }); // added by cipherNomad
     }
 
-    const identifier = clientIdentifier.trim();
-    const loweredIdentifier = identifier.toLowerCase();
+    const identifier = (clientIdentifier || "").trim(); // added by cipherNomad
+    const loweredIdentifier = identifier.toLowerCase(); // added by cipherNomad
+    const normalizedClientCode = (clientCode || "").trim().toUpperCase(); // added by cipherNomad
 
-    let clientUser = await User.findOne({
-      role: "user",
-      email: loweredIdentifier
-    }).select("name email");
+    let clientUser = null; // added by cipherNomad
 
-    if (!clientUser) {
+    if (clientId && mongoose.Types.ObjectId.isValid(clientId)) { // added by cipherNomad
+      clientUser = await User.findOne({ _id: clientId, role: "user" }).select("name email clientCode"); // added by cipherNomad
+    } // added by cipherNomad
+
+    if (!clientUser && normalizedClientCode) { // added by cipherNomad
+      clientUser = await User.findOne({ role: "user", clientCode: normalizedClientCode }).select("name email clientCode"); // added by cipherNomad
+    } // added by cipherNomad
+
+    if (!clientUser && loweredIdentifier) { // added by cipherNomad
+      clientUser = await User.findOne({ // added by cipherNomad
+        role: "user", // added by cipherNomad
+        email: loweredIdentifier // added by cipherNomad
+      }).select("name email clientCode"); // added by cipherNomad
+    } // added by cipherNomad
+
+    if (!clientUser && identifier) { // added by cipherNomad
       clientUser = await User.findOne({
         role: "user",
         name: new RegExp(`^${identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
-      }).select("name email");
+      }).select("name email clientCode");
     }
 
-    if (!clientUser) {
+    if (!clientUser && identifier) { // added by cipherNomad
       clientUser = await User.findOne({
         role: "user",
         name: new RegExp(identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")
-      }).select("name email");
+      }).select("name email clientCode"); // added by cipherNomad
     }
 
     caseData.clients = caseData.clients || [];
@@ -631,6 +692,10 @@ exports.assignClientToCase = async (req, res) => {
       assignedAt: new Date()
     });
 
+    if (clientUser?._id) { // added by cipherNomad
+      caseData.clientId = caseData.clientId || clientUser._id; // added by cipherNomad
+    } // added by cipherNomad
+
     caseData.timeline = caseData.timeline || [];
     caseData.timeline.push({
       type: "client_assigned",
@@ -643,6 +708,17 @@ exports.assignClientToCase = async (req, res) => {
     }
 
     await caseData.save();
+
+    if (clientUser?._id) { // added by cipherNomad
+      const advocate = await User.findById(req.user.id).select("name"); // added by cipherNomad
+      await Notification.create({ // added by cipherNomad
+        recipientId: clientUser._id, // added by cipherNomad
+        recipientType: "client", // added by cipherNomad
+        type: "client_added", // added by cipherNomad
+        message: `${advocate?.name || "Advocate"} added you as client in case ${caseData.title}`, // added by cipherNomad
+        relatedId: caseData._id // added by cipherNomad
+      }); // added by cipherNomad
+    } // added by cipherNomad
 
     res.json(serializeCaseForUser(caseData, req.user.role, req.user.id));
   } catch (error) {

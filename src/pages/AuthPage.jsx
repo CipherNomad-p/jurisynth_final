@@ -18,11 +18,14 @@ function AuthPage() {
 
   const API_URL = 'http://localhost:5000/api/auth';
 
-  const verifySession = async () => {
+  const verifySession = async (token) => {
     try {
       const res = await fetch('http://localhost:5000/api/protected', {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
       });
 
       return res.ok;
@@ -36,6 +39,7 @@ function AuthPage() {
     setError(null);
     setSuccessMsg(null);
     setIsLoading(true);
+    localStorage.removeItem('clientCode'); // added by cipherNomad
 
     const endpoint = isLogin ? `${API_URL}/login` : `${API_URL}/register`;
     const payload = isLogin 
@@ -61,8 +65,12 @@ function AuthPage() {
         setSuccessMsg('Account created successfully! Please log in.');
         setPassword('');
       } else {
-        // ✅ VERIFY SESSION BEFORE PROCEEDING
-        const isValidSession = await verifySession();
+        if (data?.token) {
+          localStorage.setItem('token', data.token);
+        }
+
+        // VERIFY SESSION BEFORE PROCEEDING
+        const isValidSession = await verifySession(data?.token);
 
         if (!isValidSession) {
           throw new Error('Session not established. Please try again.');
@@ -73,6 +81,7 @@ function AuthPage() {
         localStorage.setItem('userRole', data.role);
         localStorage.setItem('userId', data._id);
         localStorage.setItem('isAuthenticated', 'true');
+        if (data.clientCode) localStorage.setItem('clientCode', data.clientCode); // added by cipherNomad
 
         navigate('/dashboard');
       }
@@ -87,6 +96,7 @@ function AuthPage() {
   const handleGoogleSuccess = async (credentialResponse) => {
     setError(null);
     try {
+      localStorage.removeItem('clientCode'); // added by cipherNomad
       const response = await fetch(`${API_URL}/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,8 +110,12 @@ function AuthPage() {
         throw new Error(data.message || 'Google Auth Failed');
       }
 
-      // ✅ VERIFY SESSION
-      const isValidSession = await verifySession();
+      if (data?.token) {
+        localStorage.setItem('token', data.token);
+      }
+
+      // VERIFY SESSION
+      const isValidSession = await verifySession(data?.token);
 
       if (!isValidSession) {
         throw new Error('Session not established. Please try again.');
@@ -112,6 +126,7 @@ function AuthPage() {
       localStorage.setItem('userRole', data.role);
       localStorage.setItem('userId', data._id);
       localStorage.setItem('isAuthenticated', 'true');
+      if (data.clientCode) localStorage.setItem('clientCode', data.clientCode); // added by cipherNomad
       
       navigate('/dashboard');
 
@@ -218,3 +233,4 @@ function AuthPage() {
 }
 
 export default AuthPage;
+

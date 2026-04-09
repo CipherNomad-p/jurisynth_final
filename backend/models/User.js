@@ -27,6 +27,19 @@ const userSchema = new mongoose.Schema(
       type: String
     },
 
+    createdBy: { // added by cipherNomad
+      type: mongoose.Schema.Types.ObjectId, // added by cipherNomad
+      ref: "User" // added by cipherNomad
+    }, // added by cipherNomad
+
+    clientCode: { // added by cipherNomad
+      type: String, // added by cipherNomad
+      unique: true, // added by cipherNomad
+      sparse: true, // added by cipherNomad
+      uppercase: true, // added by cipherNomad
+      trim: true // added by cipherNomad
+    }, // added by cipherNomad
+
     aiSettings: {
       modelPreference: { 
         type: String, 

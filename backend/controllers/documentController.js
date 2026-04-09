@@ -1,6 +1,17 @@
 const Document = require("../models/Document");
 const Case = require("../models/Case");
 const fs = require("fs");
+const Notification = require("../models/Notification"); // added by cipherNomad
+
+const canAccessDocumentCase = (caseData, reqUser) => { // added by cipherNomad
+  if (!caseData || !reqUser) return false; // added by cipherNomad
+  const userId = reqUser.id; // added by cipherNomad
+  const isAdvocate = caseData.advocateId?.toString?.() === userId; // added by cipherNomad
+  const isOwner = caseData.user?.toString?.() === userId || caseData.userId?.toString?.() === userId; // added by cipherNomad
+  const isClient = caseData.clientId?.toString?.() === userId; // added by cipherNomad
+  const inClients = (caseData.clients || []).some((c) => c.user?.toString?.() === userId); // added by cipherNomad
+  return isAdvocate || isOwner || isClient || inClients; // added by cipherNomad
+}; // added by cipherNomad
 
 // ======================
 // UPLOAD DOCUMENT (DEBUG)
@@ -38,10 +49,10 @@ exports.uploadDocument = async (req, res) => {
     }
 
     // Auth check
-    if (caseData.user.toString() !== req.user.id) {
-      console.error("Access denied");
-      return res.status(403).json({ message: "Access denied" });
-    }
+    if (!canAccessDocumentCase(caseData, req.user)) { // added by cipherNomad
+      console.error("Access denied"); // added by cipherNomad
+      return res.status(403).json({ message: "Access denied" }); // added by cipherNomad
+    } // added by cipherNomad
 
     console.log("Authorization passed");
 
@@ -50,7 +61,8 @@ exports.uploadDocument = async (req, res) => {
       case: caseId,
       fileName: req.file.filename,
       filePath: req.file.path,
-      uploadedBy: req.user.id
+      uploadedBy: req.user.id, // added by cipherNomad
+      uploaderRole: req.user.role // added by cipherNomad
     });
 
     console.log("Document saved:", doc._id);
@@ -59,6 +71,20 @@ exports.uploadDocument = async (req, res) => {
     await Case.findByIdAndUpdate(caseId, {
       $push: { documents: doc._id }
     });
+
+    const recipientId = req.user.role === "advocate" // added by cipherNomad
+      ? (caseData.userId || caseData.clientId || caseData.clients?.[0]?.user) // added by cipherNomad
+      : caseData.advocateId; // added by cipherNomad
+    if (recipientId) { // added by cipherNomad
+      const recipientType = req.user.role === "advocate" ? "client" : "advocate"; // added by cipherNomad
+      await Notification.create({ // added by cipherNomad
+        recipientId, // added by cipherNomad
+        recipientType, // added by cipherNomad
+        type: "document_uploaded", // added by cipherNomad
+        message: `${req.user.role === "advocate" ? "Advocate" : "Client"} uploaded ${req.file.filename}`, // added by cipherNomad
+        relatedId: doc._id // added by cipherNomad
+      }); // added by cipherNomad
+    } // added by cipherNomad
 
     console.log("Case updated with document");
     console.log("========== UPLOAD SUCCESS ==========");

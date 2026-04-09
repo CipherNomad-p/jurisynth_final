@@ -16,6 +16,7 @@ import CreateCasePage from './pages/CreateCasePage';
 import CrimeInfoPage from './pages/CrimeInfoPage';
 import RecycleBinPage from './pages/RecycleBinPage';
 import TranscribeAudio from './pages/TranscribeAudio';
+import ProfilePage from './pages/ProfilePage'; // added by cipherNomad
 
 function App() {
   const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
@@ -36,6 +37,7 @@ function App() {
             <Route path="/recycle-bin" element={<RecycleBinPage />} />
             <Route path="/createcase" element={<CreateCasePage />} />
             <Route path="/transcribe" element={<TranscribeAudio />} />
+            <Route path="/profile" element={<ProfilePage />} /> {/* added by cipherNomad */}
             <Route path="/forgot-password" element={<div>Forgot Password Page</div>} />
           </Routes>
         </BrowserRouter>

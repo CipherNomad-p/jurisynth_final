@@ -12,6 +12,7 @@ import {
   FaBalanceScale,
   FaGavel,
   FaArchive,
+  FaExclamationTriangle,
 } from 'react-icons/fa';
 import { useLanguage } from '../context/LanguageContext';
 import { translateCase } from '../services/translationService';
@@ -46,7 +47,6 @@ function CaseViewPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [animatedStep, setAnimatedStep] = useState(0);
   const [summaryError, setSummaryError] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [evidenceError, setEvidenceError] = useState('');
@@ -62,7 +62,9 @@ function CaseViewPage() {
   const [closeCaseSuccess, setCloseCaseSuccess] = useState('');
   const [isClosingCase, setIsClosingCase] = useState(false);
   const [sessionRole, setSessionRole] = useState(localStorage.getItem('userRole') || 'user');
-  const [clientIdentifier, setClientIdentifier] = useState('');
+  const [clientCode, setClientCode] = useState(''); // added by cipherNomad
+  const [verifiedClient, setVerifiedClient] = useState(null); // added by cipherNomad
+  const [isVerifyingClient, setIsVerifyingClient] = useState(false); // added by cipherNomad
   const [clientAccessError, setClientAccessError] = useState('');
   const [clientAccessSuccess, setClientAccessSuccess] = useState('');
   const [isAssigningClient, setIsAssigningClient] = useState(false);
@@ -601,8 +603,8 @@ function CaseViewPage() {
   };
 
   const handleAssignClient = async () => {
-    if (!clientIdentifier.trim()) {
-      setClientAccessError(t('Client name or email is required.'));
+    if (!verifiedClient?._id) { // added by cipherNomad
+      setClientAccessError(t('Verify client code before linking.')); // added by cipherNomad
       return;
     }
 
@@ -617,7 +619,11 @@ function CaseViewPage() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ clientIdentifier: clientIdentifier.trim() })
+        body: JSON.stringify({ // added by cipherNomad
+          clientId: verifiedClient._id, // added by cipherNomad
+          clientCode: verifiedClient.clientCode, // added by cipherNomad
+          clientIdentifier: verifiedClient.email || verifiedClient.name // added by cipherNomad
+        }) // added by cipherNomad
       });
 
       const data = await response.json().catch(async () => {
@@ -625,54 +631,14 @@ function CaseViewPage() {
         return { message: rawText };
       });
 
-      if (!response.ok) {
-        const trimmedIdentifier = clientIdentifier.trim();
-        const nextClients = [
-          ...(caseDetails?.clients || []),
-          {
-            name: trimmedIdentifier.includes('@') ? trimmedIdentifier.split('@')[0] : trimmedIdentifier,
-            email: trimmedIdentifier.toLowerCase(),
-            assignedAt: new Date().toISOString()
-          }
-        ];
-
-        const nextTimeline = [
-          ...(caseDetails?.timeline || []),
-          {
-            type: 'client_assigned',
-            message: `Client assigned: ${trimmedIdentifier}`,
-            createdAt: new Date().toISOString()
-          }
-        ];
-
-        response = await fetch(`http://localhost:5000/api/cases/${caseId}`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            clients: nextClients,
-            timeline: nextTimeline
-          })
-        });
-
-        const fallbackData = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new Error(fallbackData?.message || data?.message || t('Failed to link client to case.'));
-        }
-
-        setCaseDetails(fallbackData);
-        setClientIdentifier('');
-        persistClientCaseLink(trimmedIdentifier);
-        setClientAccessSuccess(t('Client linked to this case successfully.'));
-        return;
+      if (!response.ok) { // added by cipherNomad
+        throw new Error(data?.message || t('Failed to link client to case.')); // added by cipherNomad
       }
 
       setCaseDetails(data);
-      setClientIdentifier('');
-      persistClientCaseLink(clientIdentifier.trim());
+      setClientCode(''); // added by cipherNomad
+      setVerifiedClient(null); // added by cipherNomad
+      persistClientCaseLink((verifiedClient.email || verifiedClient.name || '').trim()); // added by cipherNomad
       setClientAccessSuccess(t('Client linked to this case successfully.'));
     } catch (err) {
       console.error(err);
@@ -681,6 +647,33 @@ function CaseViewPage() {
       setIsAssigningClient(false);
     }
   };
+
+  const handleVerifyClientCode = async () => { // added by cipherNomad
+    if (!clientCode.trim()) { // added by cipherNomad
+      setClientAccessError(t('Client code, email, or name is required.')); // added by cipherNomad
+      return; // added by cipherNomad
+    } // added by cipherNomad
+    setIsVerifyingClient(true); // added by cipherNomad
+    setClientAccessError(''); // added by cipherNomad
+    setClientAccessSuccess(''); // added by cipherNomad
+    setVerifiedClient(null); // added by cipherNomad
+    try { // added by cipherNomad
+      const response = await fetch(`http://localhost:5000/api/auth/clients/verify?identifier=${encodeURIComponent(clientCode.trim())}`, { // added by cipherNomad
+        method: 'GET', // added by cipherNomad
+        credentials: 'include' // added by cipherNomad
+      }); // added by cipherNomad
+      const data = await response.json().catch(() => ({})); // added by cipherNomad
+      if (!response.ok) { // added by cipherNomad
+        throw new Error(data?.message || t('Client not found for this code, email, or name.')); // added by cipherNomad
+      } // added by cipherNomad
+      setVerifiedClient(data); // added by cipherNomad
+      setClientAccessSuccess(t('Client verified successfully.')); // added by cipherNomad
+    } catch (err) { // added by cipherNomad
+      setClientAccessError(err.message || t('Client verification failed.')); // added by cipherNomad
+    } finally { // added by cipherNomad
+      setIsVerifyingClient(false); // added by cipherNomad
+    } // added by cipherNomad
+  }; // added by cipherNomad
 
   const getLatestTimelineEvent = (type) =>
     caseDetails?.timeline?.some((entry) => entry.type === type);
@@ -792,8 +785,39 @@ function CaseViewPage() {
   };
 
   const status = getCaseProgress();
-  const activeStepIndex = workflowSteps.findIndex((step) => step.key === status.key);
-  const targetStep = activeStepIndex === -1 ? 0 : activeStepIndex;
+  const getWorkflowStepState = (stepKey) => { // added by cipherNomad
+    const hasDocuments = (caseDetails?.documents?.length || 0) > 0; // added by cipherNomad
+    const hasEvidence = (caseDetails?.evidence?.length || 0) > 0; // added by cipherNomad
+    const hasSupportingFiles = hasDocuments || hasEvidence; // added by cipherNomad
+    const hasAiSummary = Boolean(caseDetails?.aiSummary?.trim()); // added by cipherNomad
+    const hasKeyPoints = (caseDetails?.keyPoints?.length || 0) > 0; // added by cipherNomad
+    const hearingCount = getHearingCount(); // added by cipherNomad
+    const hasJudgement = hearingCount > 0; // added by cipherNomad
+    const isClosed = caseDetails?.status === 'closed' || caseDetails?.stage === 'closed'; // added by cipherNomad
+    const hasAiGenerated = getLatestTimelineEvent('ai_generated'); // added by cipherNomad
+    const hasProof = getLatestTimelineEvent('proof_added'); // added by cipherNomad
+    const hasReadyStatus = caseDetails?.status === 'ready' || caseDetails?.stage === 'ready'; // added by cipherNomad
+
+    const completionMap = { // added by cipherNomad
+      created: true, // added by cipherNomad
+      awaiting_documents: hasSupportingFiles, // added by cipherNomad
+      documents_uploaded: hasSupportingFiles, // added by cipherNomad
+      under_review: hasSupportingFiles && hasProof, // added by cipherNomad
+      analysis_ready: hasReadyStatus || hasAiSummary || hasKeyPoints || hasAiGenerated, // added by cipherNomad
+      judgement_added: hasJudgement, // added by cipherNomad
+      closed: isClosed // added by cipherNomad
+    }; // added by cipherNomad
+
+    if (completionMap[stepKey]) return 'done'; // added by cipherNomad
+    if (stepKey === status.key) return 'active'; // added by cipherNomad
+
+    if (stepKey === 'awaiting_documents' && !hasSupportingFiles) return 'attention'; // added by cipherNomad
+    if (stepKey === 'documents_uploaded' && !hasSupportingFiles) return 'attention'; // added by cipherNomad
+    if (stepKey === 'under_review' && hasSupportingFiles && !hasProof) return 'attention'; // added by cipherNomad
+    if (stepKey === 'analysis_ready' && hasSupportingFiles && !hasAiSummary && !hasKeyPoints && !hasAiGenerated && !hasReadyStatus) return 'attention'; // added by cipherNomad
+
+    return 'upcoming'; // added by cipherNomad
+  }; // added by cipherNomad
   const visibleJudgement = caseDetails?.judgement?.trim() || '';
   const hearings = caseDetails?.hearings || [];
   const canAddHearing = canEditJudgement;
@@ -804,21 +828,6 @@ function CaseViewPage() {
     ...(caseDetails?.documents || []),
     ...(caseDetails?.evidence || [])
   ].some(canSummarizeDocument);
-
-  useEffect(() => {
-    if (!caseDetails) return;
-
-    let i = -1;
-
-    const interval = setInterval(() => {
-      i++;
-      setAnimatedStep(i);
-
-      if (i >= targetStep) clearInterval(interval);
-    }, 400);
-
-    return () => clearInterval(interval);
-  }, [caseDetails, targetStep]);
 
   if (isLoading || !caseDetails) return (
     <DashboardLayout userName={userName} userInitials={userInitials}>
@@ -1040,19 +1049,33 @@ function CaseViewPage() {
                     <input
                       type="text"
                       className="judgement-textarea client-access-input"
-                      value={clientIdentifier}
-                      onChange={(e) => setClientIdentifier(e.target.value)}
-                      placeholder={t('Enter client name or email to link this case')}
+                      value={clientCode} // added by cipherNomad
+                      onChange={(e) => setClientCode(e.target.value)} // added by cipherNomad
+                      placeholder={t('Enter client code, email, or name to verify and link')} // added by cipherNomad
                     />
+                    <button // added by cipherNomad
+                      type="button" // added by cipherNomad
+                      className="generate-ai-btn judgement-submit-btn" // added by cipherNomad
+                      onClick={handleVerifyClientCode} // added by cipherNomad
+                      disabled={isVerifyingClient} // added by cipherNomad
+                    > {/* added by cipherNomad */}
+                      <FaCheck /> {isVerifyingClient ? t('Verifying...') : t('Verify Code')} {/* added by cipherNomad */}
+                    </button> {/* added by cipherNomad */}
                     <button
                       type="button"
                       className="generate-ai-btn judgement-submit-btn"
                       onClick={handleAssignClient}
-                      disabled={isAssigningClient}
+                      disabled={isAssigningClient || !verifiedClient} // added by cipherNomad
                     >
                       <FaCheck /> {isAssigningClient ? t('Linking...') : t('Link Client')}
                     </button>
                   </div>
+                  {verifiedClient && ( // added by cipherNomad
+                    <div className="linked-client-chip"> {/* added by cipherNomad */}
+                      <span>{verifiedClient.name || t('Client')}</span> {/* added by cipherNomad */}
+                      <small>{verifiedClient.email} ({verifiedClient.clientCode})</small> {/* added by cipherNomad */}
+                    </div>
+                  )} {/* added by cipherNomad */}
 
                   <div className="linked-clients-list">
                     {(caseDetails.clients || []).length > 0 ? (
@@ -1184,24 +1207,20 @@ function CaseViewPage() {
 
             <div className="case-card">
               <h3>{t('Case Workflow')}</h3>
-              <div className="case-progress-list">
-                {steps.map((step, index) => {
-                  const StepIcon = step.icon;
-                  const stateClass = index < animatedStep
-                    ? 'done'
-                    : index === animatedStep
-                    ? 'active'
-                    : 'upcoming';
+                <div className="case-progress-list">
+                  {steps.map((step, index) => {
+                    const StepIcon = step.icon;
+                    const stateClass = getWorkflowStepState(step.key); // added by cipherNomad
 
-                  return (
-                    <div key={step.key} className={`case-progress-item ${stateClass}`}>
-                      <div className="case-progress-marker">
-                        <StepIcon />
+                    return (
+                      <div key={step.key} className={`case-progress-item ${stateClass}`}>
+                        <div className="case-progress-marker">
+                          {stateClass === 'done' ? <FaCheck /> : stateClass === 'attention' ? <FaExclamationTriangle /> : <StepIcon />} {/* added by cipherNomad */}
+                        </div>
+                        <span className="case-progress-text">{step.label}</span>
                       </div>
-                      <span className="case-progress-text">{step.label}</span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </div>
           </div>

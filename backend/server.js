@@ -5,19 +5,27 @@ const path = require("path");
 const cookieParser = require("cookie-parser");
 const helmet = require("helmet");
 const morgan = require("morgan");
-const rateLimit = require("express-rate-limit");
 
 const connectDB = require("./config/db");
 const User = require("./models/User");
+const { backfillMissingClientCodes } = require("./controllers/authController"); // added by cipherNomad
 
 const { protect } = require("./middleware/authMiddleware");
 const validateSettings = require("./middleware/validateSettings");
 
 // ✅ ADD (Shrikant feature)
 const translationRoutes = require("./routes/translationRoutes");
+const notificationRoutes = require("./routes/notificationRoutes"); // added by cipherNomad
 
 dotenv.config();
-connectDB();
+connectDB().then(async () => { // added by cipherNomad
+  try { // added by cipherNomad
+    const backfilledCount = await backfillMissingClientCodes(); // added by cipherNomad
+    console.log(`Client code backfill complete: ${backfilledCount}`); // added by cipherNomad
+  } catch (error) { // added by cipherNomad
+    console.error("Client code backfill failed:", error.message); // added by cipherNomad
+  } // added by cipherNomad
+}); // added by cipherNomad
 
 const app = express();
 
@@ -43,15 +51,6 @@ app.use(
     credentials: true,
   })
 );
-
-// Rate limiting
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { message: "Too many requests, please try again later." },
-});
-
-app.use("/api/", apiLimiter);
 
 // Body parser
 app.use(express.json());
@@ -132,6 +131,7 @@ app.use("/api/documents", require("./routes/documentRoutes"));
 app.use("/api/summary", require("./routes/summaryRoutes"));
 app.use("/api/search", require("./routes/searchRoutes"));
 app.use("/api/transcribe", require("./routes/transcribeRoutes"));
+app.use("/api/notifications", notificationRoutes); // added by cipherNomad
 
 // ✅ ADD (Shrikant)
 app.use("/api", translationRoutes);

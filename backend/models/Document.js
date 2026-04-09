@@ -22,6 +22,11 @@ const documentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true
+    }, // added by cipherNomad
+
+    uploaderRole: { // added by cipherNomad
+      type: String, // added by cipherNomad
+      default: "user" // added by cipherNomad
     }
   },
   { timestamps: true }

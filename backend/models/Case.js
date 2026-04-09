@@ -194,6 +194,11 @@ const caseSchema = new mongoose.Schema(
       ref: "User"
     },
 
+    clientId: { // added by cipherNomad
+      type: mongoose.Schema.Types.ObjectId, // added by cipherNomad
+      ref: "User" // added by cipherNomad
+    }, // added by cipherNomad
+
     advocateId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User"

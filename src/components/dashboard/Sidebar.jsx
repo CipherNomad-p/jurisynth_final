@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
 import {
-  FaHome, FaFolder, FaSearch, FaUpload, FaCog, FaSignOutAlt, FaTrash
+  FaHome, FaFolder, FaSearch, FaUpload, FaCog, FaSignOutAlt, FaTrash, FaUser // added by cipherNomad
 } from 'react-icons/fa';
 import { FaBalanceScale } from "react-icons/fa";
 
@@ -105,6 +105,13 @@ function Sidebar({ userName, userInitials, openCreateCase }) {
             <span className="nav-text">Recycle Bin</span>
           </NavLink>
         </li>
+
+        <li className="nav-item">
+          <NavLink to="/profile"> {/* added by cipherNomad */}
+            <FaUser /> {/* added by cipherNomad */}
+            <span className="nav-text">Profile</span> {/* added by cipherNomad */}
+          </NavLink> {/* added by cipherNomad */}
+        </li> {/* added by cipherNomad */}
 
         <li className="nav-item">
           <NavLink to="/settings">
