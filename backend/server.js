@@ -46,7 +46,19 @@ app.use(cookieParser());
 // ✅ CORS (merged from Gargi + Pranita)
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://localhost:3001"],
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:5173",
+      ];
+
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true); // allow all for now (you can restrict later)
+      }
+    },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
   })
@@ -57,7 +69,9 @@ app.use(express.json());
 
 // Static uploads
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
+app.get("/api/health", (req, res) => {
+  res.json({ status: "OK", message: "Backend running" });
+});
 //
 // ================= USER SETTINGS =================
 //
@@ -113,6 +127,7 @@ app.patch(
 app.post("/api/auth/logout", (req, res) => {
   res.cookie("token", "", {
     httpOnly: true,
+    secure: false,
     expires: new Date(0),
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -173,6 +188,7 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () =>
+app.listen(PORT, "0.0.0.0", () =>
   console.log(`Jurisynth Backend running on port ${PORT}`)
 );
+console.log(`Server accessible at http://0.0.0.0:${PORT}`);
