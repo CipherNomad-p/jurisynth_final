@@ -18,9 +18,22 @@ function AllCasesPage() {
 
   const fetchCases = async () => {
     try {
+      // ✅ ADDED: token fetch
+      const token = localStorage.getItem("token");
+
+      // ✅ ADDED: guard
+      if (!token) {
+        console.error("No token found. User not authenticated.");
+        return;
+      }
+
       const res = await fetch("http://65.0.240.171:5000/api/cases", {
         method: "GET",
-        credentials: "include"
+        // ❌ REMOVED: credentials: "include"
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
       });
 
       const data = await res.json();
@@ -135,8 +148,6 @@ function AllCasesPage() {
       return fallbackFile ? [fallbackFile] : [];
     }
 
-    // Final fallback: if the case has uploaded files but no normalized evidence bucket yet,
-    // still expose the most recent file in Evidence so it can be viewed from All Cases.
     if ((caseItem.documents || []).length > 0) {
       const fallbackFile = caseItem.documents[caseItem.documents.length - 1];
       return fallbackFile ? [fallbackFile] : [];
@@ -203,10 +214,7 @@ function AllCasesPage() {
               <tbody>
                 {filteredCases.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan="8"
-                      style={{ textAlign: "center", padding: "20px", color: "var(--text-secondary)" }}
-                    >
+                    <td colSpan="8" style={{ textAlign: "center", padding: "20px", color: "var(--text-secondary)" }}>
                       No cases found
                     </td>
                   </tr>

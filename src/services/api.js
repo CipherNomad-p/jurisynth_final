@@ -1,20 +1,21 @@
-export const updateUserSettings = async (payload) => {
+const API_BASE = 'http://65.0.240.171:5000';
+
+export const apiFetch = async (url, options = {}) => {
     const token = localStorage.getItem('token');
 
-    const response = await fetch('http://65.0.240.171:5000/api/users/settings', {
-        method: 'PATCH',
+    const response = await fetch(`${API_BASE}${url}`, {
+        ...options,
         headers: {
             'Content-Type': 'application/json',
-            ...(token && { Authorization: `Bearer ${token}` }) // only attach if exists
-        },
-        credentials: 'include', // supports cookie if used
-        body: JSON.stringify(payload)
+            ...(token && { Authorization: `Bearer ${token}` }),
+            ...options.headers
+        }
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.message || 'Failed to update settings');
+        throw new Error(data.message || 'API Error');
     }
 
     return data;

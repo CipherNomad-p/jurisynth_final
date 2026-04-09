@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import '../styles.css'; 
-import { updateUserSettings } from '../services/api';
+import '../styles.css';
+import { apiFetch } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 
 const SettingsPage = () => {
@@ -11,7 +11,7 @@ const SettingsPage = () => {
 
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('general');
-  
+
   const [isSimulation, setIsSimulation] = useState(true);
   const [selectedModel, setSelectedModel] = useState('Gemini 2.5 Flash');
   const [detailLevel, setDetailLevel] = useState('Comprehensive');
@@ -24,22 +24,25 @@ const SettingsPage = () => {
   const handleSaveSettings = async () => {
     setLoading(true);
     try {
-        const payload = {
-            modelPreference: selectedModel,
-            analysisDepth: detailLevel,
-            simulationMode: isSimulation
-        };
-        
-        await updateUserSettings(payload);
-        alert(t("Settings saved successfully!"));
+      const payload = {
+        modelPreference: selectedModel,
+        analysisDepth: detailLevel,
+        simulationMode: isSimulation
+      };
+
+      await apiFetch('/api/users/settings', {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+
+      alert(t("Settings saved successfully!"));
     } catch (err) {
-        console.error("Settings Sync Error:", err);
-        alert(`${t("Error")}: ${err.message}`);
+      console.error("Settings Sync Error:", err);
+      alert(`${t("Error")}: ${err.message}`);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
-
   const renderContent = () => {
     switch (activeTab) {
       case 'ai':
@@ -49,9 +52,9 @@ const SettingsPage = () => {
 
             <div className="form-group">
               <label>{t("Model Selection")}</label>
-              <select 
-                className="standard-input" 
-                value={selectedModel} 
+              <select
+                className="standard-input"
+                value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
               >
                 <option value="Gemini 1.5 Pro">
@@ -64,29 +67,29 @@ const SettingsPage = () => {
             </div>
 
             <div className="form-group">
-                <label>{t("Analysis Depth")}</label>
-                <select 
-                    className="standard-input"
-                    value={detailLevel}
-                    onChange={(e) => setDetailLevel(e.target.value)}
-                >
-                    <option value="Concise">
-                      {t("Concise (Fast Summary)")}
-                    </option>
-                    <option value="Comprehensive">
-                      {t("Comprehensive (Deep Legal Analysis)")}
-                    </option>
-                </select>
+              <label>{t("Analysis Depth")}</label>
+              <select
+                className="standard-input"
+                value={detailLevel}
+                onChange={(e) => setDetailLevel(e.target.value)}
+              >
+                <option value="Concise">
+                  {t("Concise (Fast Summary)")}
+                </option>
+                <option value="Comprehensive">
+                  {t("Comprehensive (Deep Legal Analysis)")}
+                </option>
+              </select>
             </div>
 
             <div className="settings-footer-actions">
-                <button className="cancel-btn-link" onClick={handleClose}>
-                  {t("Cancel")}
-                </button>
+              <button className="cancel-btn-link" onClick={handleClose}>
+                {t("Cancel")}
+              </button>
 
-                <button className="save-btn" onClick={handleSaveSettings} disabled={loading}>
-                  {loading ? t("Saving...") : t("Save AI Configuration")}
-                </button>
+              <button className="save-btn" onClick={handleSaveSettings} disabled={loading}>
+                {loading ? t("Saving...") : t("Save AI Configuration")}
+              </button>
             </div>
           </div>
         );
@@ -99,14 +102,14 @@ const SettingsPage = () => {
             <div className="form-group">
               <label>{t("Authentication Token")}</label>
               <code className="token-display">
-                {localStorage.getItem('token') 
-                  ? t("Active Session (JWT Detected)") 
+                {localStorage.getItem('token')
+                  ? t("Active Session (JWT Detected)")
                   : t("No Token Found")}
               </code>
             </div>
 
-            <button 
-              className="danger-btn" 
+            <button
+              className="danger-btn"
               onClick={() => {
                 localStorage.removeItem('token');
                 localStorage.removeItem('loggedInUserName');
@@ -129,10 +132,10 @@ const SettingsPage = () => {
 
             <div className="form-group checkbox-group">
               <label>{t("Simulation Mode")}</label>
-              <input 
-                type="checkbox" 
-                checked={isSimulation} 
-                onChange={() => setIsSimulation(!isSimulation)} 
+              <input
+                type="checkbox"
+                checked={isSimulation}
+                onChange={() => setIsSimulation(!isSimulation)}
               />
               <span className="hint">
                 {t("Run UI tests without contacting the live backend.")}
@@ -140,13 +143,13 @@ const SettingsPage = () => {
             </div>
 
             <div className="settings-footer-actions">
-                <button className="cancel-btn-link" onClick={handleClose}>
-                  {t("Cancel")}
-                </button>
+              <button className="cancel-btn-link" onClick={handleClose}>
+                {t("Cancel")}
+              </button>
 
-                <button className="save-btn" onClick={handleSaveSettings} disabled={loading}>
-                  {loading ? t("Saving...") : t("Save General Settings")}
-                </button>
+              <button className="save-btn" onClick={handleSaveSettings} disabled={loading}>
+                {loading ? t("Saving...") : t("Save General Settings")}
+              </button>
             </div>
           </div>
         );
@@ -159,22 +162,22 @@ const SettingsPage = () => {
       <aside className="settings-sidebar">
         <div className="sidebar-brand">Jurisynth</div>
 
-        <button 
-          className={activeTab === 'general' ? 'active' : ''} 
+        <button
+          className={activeTab === 'general' ? 'active' : ''}
           onClick={() => setActiveTab('general')}
         >
           {t("General")}
         </button>
 
-        <button 
-          className={activeTab === 'ai' ? 'active' : ''} 
+        <button
+          className={activeTab === 'ai' ? 'active' : ''}
           onClick={() => setActiveTab('ai')}
         >
           {t("AI & Search")}
         </button>
 
-        <button 
-          className={activeTab === 'security' ? 'active' : ''} 
+        <button
+          className={activeTab === 'security' ? 'active' : ''}
           onClick={() => setActiveTab('security')}
         >
           {t("Security")}
@@ -183,15 +186,15 @@ const SettingsPage = () => {
 
       <main className="settings-content">
         <div className="settings-header-nav">
-            <h2>{t("Settings")}</h2>
+          <h2>{t("Settings")}</h2>
 
-            <button 
-              className="close-btn-top" 
-              onClick={handleClose} 
-              title={t("Back to Dashboard")}
-            >
-              &times;
-            </button>
+          <button
+            className="close-btn-top"
+            onClick={handleClose}
+            title={t("Back to Dashboard")}
+          >
+            &times;
+          </button>
         </div>
 
         {renderContent()}

@@ -19,6 +19,13 @@ import { translateCase } from '../services/translationService';
 import DocumentList from '../components/shared/DocumentList';
 import UploadBox from '../components/shared/UploadBox';
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("token");
+  return {
+    Authorization: `Bearer ${token}`
+  };
+};
+
 const workflowSteps = [
   { key: 'created', label: 'Case Created', icon: FaCheck },
   { key: 'awaiting_documents', label: 'Awaiting Documents', icon: FaFolderOpen },
@@ -162,7 +169,7 @@ function CaseViewPage() {
     try {
       const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
         method: 'GET',
-        credentials: 'include'
+        headers: getAuthHeaders()
       });
 
       const data = await response.json();
@@ -184,7 +191,7 @@ function CaseViewPage() {
       try {
         const response = await fetch('http://65.0.240.171:5000/api/protected', {
           method: 'GET',
-          credentials: 'include'
+          headers: getAuthHeaders()
         });
 
         const data = await response.json().catch(() => ({}));
@@ -289,7 +296,7 @@ function CaseViewPage() {
     try {
       const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/documents`, {
         method: 'POST',
-        credentials: 'include',
+        headers: getAuthHeaders(),
         body: formData
       });
 
@@ -321,9 +328,9 @@ function CaseViewPage() {
 
       const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
         method: 'PUT',
-        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
         },
         body: JSON.stringify({ documents: nextDocuments })
       });
@@ -346,7 +353,7 @@ function CaseViewPage() {
     try {
       const response = await fetch(`http://65.0.240.171:5000/api/summary/${caseId}`, {
         method: 'POST',
-        credentials: 'include'
+        headers: getAuthHeaders()
       });
 
       const data = await response.json().catch(() => ({}));
@@ -365,316 +372,353 @@ function CaseViewPage() {
     }
   };
 
-  const handleEvidenceUploadSubmit = async () => {
-    if (!selectedEvidenceFile) return;
-    setIsUploadingEvidence(true);
-    setEvidenceError('');
-    setEvidenceSuccess('');
+  const getAuthHeaders = () => {
+  const token = localStorage.getItem("token");
+  return {
+    Authorization: `Bearer ${token}`
+  };
+};
 
-    try {
-      const formData = new FormData();
-      formData.append('file', selectedEvidenceFile);
+const handleEvidenceUploadSubmit = async () => {
+  if (!selectedEvidenceFile) return;
+  setIsUploadingEvidence(true);
+  setEvidenceError('');
+  setEvidenceSuccess('');
 
-      const uploadResponse = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/documents`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      });
+  try {
+    const formData = new FormData();
+    formData.append('file', selectedEvidenceFile);
 
-      if (!uploadResponse.ok) {
-        const data = await uploadResponse.json().catch(() => ({}));
-        throw new Error(data?.message || t('Failed to upload evidence.'));
-      }
+    const uploadResponse = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/documents`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: formData
+    });
 
-      const uploadedCase = await uploadResponse.json();
-      const uploadedDocuments = [...(uploadedCase?.documents || [])];
-      const latestUploadedDocIndex = uploadedDocuments.findIndex(
-        (doc) => (doc.fileName || doc.filename) === selectedEvidenceFile.name
-      );
-      const resolvedIndex = latestUploadedDocIndex === -1
+    if (!uploadResponse.ok) {
+      const data = await uploadResponse.json().catch(() => ({}));
+      throw new Error(data?.message || t('Failed to upload evidence.'));
+    }
+
+    const uploadedCase = await uploadResponse.json();
+    const uploadedDocuments = [...(uploadedCase?.documents || [])];
+
+    const latestUploadedDocIndex = uploadedDocuments.findIndex(
+      (doc) => (doc.fileName || doc.filename) === selectedEvidenceFile.name
+    );
+
+    const resolvedIndex =
+      latestUploadedDocIndex === -1
         ? uploadedDocuments.length - 1
         : latestUploadedDocIndex;
-      const uploadedFile = uploadedDocuments[resolvedIndex];
 
-      if (!uploadedFile) {
-        throw new Error(t('Uploaded evidence file could not be resolved.'));
+    const uploadedFile = uploadedDocuments[resolvedIndex];
+
+    if (!uploadedFile) {
+      throw new Error(t('Uploaded evidence file could not be resolved.'));
+    }
+
+    uploadedDocuments.splice(resolvedIndex, 1);
+
+    const updateResponse = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify({
+        documents: uploadedDocuments,
+        evidence: [...(uploadedCase?.evidence || []), uploadedFile],
+        timeline: [
+          ...(uploadedCase?.timeline || []),
+          {
+            type: 'proof_added',
+            message: `Proof added: ${uploadedFile.fileName || uploadedFile.filename || selectedEvidenceFile.name}`,
+            createdAt: new Date().toISOString()
+          }
+        ],
+        status: 'processing'
+      })
+    });
+
+    if (!updateResponse.ok) {
+      const data = await updateResponse.json().catch(() => ({}));
+      throw new Error(data?.message || t('Failed to finalize evidence upload.'));
+    }
+
+    const data = await updateResponse.json();
+    setSelectedEvidenceFile(null);
+    setCaseDetails(data);
+    setEvidenceSuccess(t('Evidence uploaded successfully.'));
+  } catch (err) {
+    console.error(err);
+    setEvidenceError(err.message || t('Failed to upload evidence.'));
+  } finally {
+    setIsUploadingEvidence(false);
+  }
+};
+
+const handleDeleteFile = async (source, fileName) => {
+  setDeleteError('');
+
+  try {
+    const existingFiles = [...(caseDetails?.[source] || [])];
+
+    const fileIndex = existingFiles.findIndex(
+      (file) => (file.fileName || file.filename) === fileName
+    );
+
+    const targetFile = fileIndex >= 0 ? existingFiles[fileIndex] : null;
+
+    let response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/files/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify({ source, fileName })
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      if (fileIndex === -1) {
+        throw new Error(data?.message || t('File not found.'));
       }
 
-      uploadedDocuments.splice(resolvedIndex, 1);
+      const [removedFile] = existingFiles.splice(fileIndex, 1);
 
-      const updateResponse = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
+      const deletedAt = persistDeletedFile(source, fileName, removedFile);
+
+      const recycleBin = [
+        ...(caseDetails?.recycleBin || []),
+        {
+          filename: removedFile.filename || removedFile.fileName || fileName,
+          fileName: removedFile.fileName || removedFile.filename || fileName,
+          path: removedFile.path || '',
+          fileUrl: removedFile.fileUrl || '',
+          source,
+          deletedAt
+        }
+      ];
+
+      const timeline = [
+        ...(caseDetails?.timeline || []),
+        {
+          type: 'file_deleted',
+          message: `${source === 'documents' ? 'Document' : 'Evidence'} deleted: ${fileName}`,
+          createdAt: new Date().toISOString()
+        }
+      ];
+
+      response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
         method: 'PUT',
-        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
         },
         body: JSON.stringify({
-          documents: uploadedDocuments,
-          evidence: [...(uploadedCase?.evidence || []), uploadedFile],
-          timeline: [
-            ...(uploadedCase?.timeline || []),
-            {
-              type: 'proof_added',
-              message: `Proof added: ${uploadedFile.fileName || uploadedFile.filename || selectedEvidenceFile.name}`,
-              createdAt: new Date().toISOString()
-            }
-          ],
-          status: 'processing'
+          [source]: existingFiles,
+          recycleBin,
+          timeline
         })
       });
 
-      if (!updateResponse.ok) {
-        const data = await updateResponse.json().catch(() => ({}));
-        throw new Error(data?.message || t('Failed to finalize evidence upload.'));
-      }
-
-      const data = await updateResponse.json();
-      setSelectedEvidenceFile(null);
-      setCaseDetails(data);
-      setEvidenceSuccess(t('Evidence uploaded successfully.'));
-    } catch (err) {
-      console.error(err);
-      setEvidenceError(err.message || t('Failed to upload evidence.'));
-    } finally {
-      setIsUploadingEvidence(false);
-    }
-  };
-
-  const handleDeleteFile = async (source, fileName) => {
-    setDeleteError('');
-    try {
-      const existingFiles = [...(caseDetails?.[source] || [])];
-      const fileIndex = existingFiles.findIndex(
-        (file) => (file.fileName || file.filename) === fileName
-      );
-      const targetFile = fileIndex >= 0 ? existingFiles[fileIndex] : null;
-
-      let response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/files/delete`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ source, fileName })
-      });
-
-      const data = await response.json().catch(() => ({}));
+      const fallbackData = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        if (fileIndex === -1) {
-          throw new Error(data?.message || t('File not found.'));
-        }
-
-        const [removedFile] = existingFiles.splice(fileIndex, 1);
-        const deletedAt = persistDeletedFile(source, fileName, removedFile);
-        const recycleBin = [
-          ...(caseDetails?.recycleBin || []),
-          {
-            filename: removedFile.filename || removedFile.fileName || fileName,
-            fileName: removedFile.fileName || removedFile.filename || fileName,
-            path: removedFile.path || '',
-            fileUrl: removedFile.fileUrl || '',
-            source,
-            deletedAt
-          }
-        ];
-
-        const timeline = [
-          ...(caseDetails?.timeline || []),
-          {
-            type: 'file_deleted',
-            message: `${source === 'documents' ? 'Document' : 'Evidence'} deleted: ${fileName}`,
-            createdAt: new Date().toISOString()
-          }
-        ];
-
-        response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            [source]: existingFiles,
-            recycleBin,
-            timeline
-          })
-        });
-
-        const fallbackData = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new Error(fallbackData?.message || data?.message || t('Failed to delete file.'));
-        }
-
-        setCaseDetails(fallbackData);
-        if (source === 'documents') {
-          setUploadSuccess(t('Document moved to recycle bin.'));
-        } else {
-          setEvidenceSuccess(t('Evidence moved to recycle bin.'));
-        }
-        return;
+        throw new Error(fallbackData?.message || data?.message || t('Failed to delete file.'));
       }
 
-      if (targetFile) {
-        persistDeletedFile(source, fileName, targetFile);
-      }
-      setCaseDetails(data);
+      setCaseDetails(fallbackData);
+
       if (source === 'documents') {
         setUploadSuccess(t('Document moved to recycle bin.'));
       } else {
         setEvidenceSuccess(t('Evidence moved to recycle bin.'));
       }
-    } catch (err) {
-      console.error(err);
-      setDeleteError(err.message || t('Failed to delete file.'));
-    }
-  };
 
-  const handleSubmitJudgement = async () => {
-    if (!judgementText.trim()) {
-      setJudgementError(t('Judgement text is required.'));
       return;
     }
 
-    setIsSubmittingJudgement(true);
-    setJudgementError('');
-    setJudgementSuccess('');
+    if (targetFile) {
+      persistDeletedFile(source, fileName, targetFile);
+    }
+
+    setCaseDetails(data);
+
+    if (source === 'documents') {
+      setUploadSuccess(t('Document moved to recycle bin.'));
+    } else {
+      setEvidenceSuccess(t('Evidence moved to recycle bin.'));
+    }
+
+  } catch (err) {
+    console.error(err);
+    setDeleteError(err.message || t('Failed to delete file.'));
+  }
+};
+
+const handleSubmitJudgement = async () => {
+  if (!judgementText.trim()) {
+    setJudgementError(t('Judgement text is required.'));
+    return;
+  }
+
+  setIsSubmittingJudgement(true);
+  setJudgementError('');
+  setJudgementSuccess('');
+
+  try {
+    const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/judgement`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify({ judgement: judgementText.trim() })
+    });
+
+    const rawText = await response.text().catch(() => '');
+    let data = {};
 
     try {
-      const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/judgement`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ judgement: judgementText.trim() })
-      });
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      data = { message: rawText };
+    }
 
+    if (!response.ok) {
+      throw new Error(data?.message || t('Failed to save judgement.'));
+    }
+
+    setCaseDetails(data);
+    setIsCreatingNewHearing(false);
+    setJudgementSuccess(t('Judgement saved successfully.'));
+  } catch (err) {
+    console.error(err);
+    setJudgementError(err.message || t('Failed to save judgement.'));
+  } finally {
+    setIsSubmittingJudgement(false);
+  }
+};
+
+const handleCloseCase = async () => {
+  setCloseCaseError('');
+  setCloseCaseSuccess('');
+
+  try {
+    setIsClosingCase(true);
+
+    const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/close`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data?.message || t('Failed to close case.'));
+    }
+
+    setCaseDetails(data);
+    setCloseCaseSuccess(t('Case closed successfully.'));
+  } catch (err) {
+    console.error(err);
+    setCloseCaseError(err.message || t('Failed to close case.'));
+  } finally {
+    setIsClosingCase(false);
+  }
+};
+
+const handleAssignClient = async () => {
+  if (!verifiedClient?._id) {
+    setClientAccessError(t('Verify client code before linking.'));
+    return;
+  }
+
+  setIsAssigningClient(true);
+  setClientAccessError('');
+  setClientAccessSuccess('');
+
+  try {
+    const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/clients`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify({
+        clientId: verifiedClient._id,
+        clientCode: verifiedClient.clientCode,
+        clientIdentifier: verifiedClient.email || verifiedClient.name
+      })
+    });
+
+    const data = await response.json().catch(async () => {
       const rawText = await response.text().catch(() => '');
-      let data = {};
+      return { message: rawText };
+    });
 
-      try {
-        data = rawText ? JSON.parse(rawText) : {};
-      } catch (parseError) {
-        data = { message: rawText };
-      }
-
-      if (!response.ok) {
-        throw new Error(data?.message || t('Failed to save judgement.'));
-      }
-
-      setCaseDetails(data);
-      setIsCreatingNewHearing(false);
-      setJudgementSuccess(t('Judgement saved successfully.'));
-    } catch (err) {
-      console.error(err);
-      setJudgementError(err.message || t('Failed to save judgement.'));
-    } finally {
-      setIsSubmittingJudgement(false);
-    }
-  };
-
-  const handleCloseCase = async () => {
-    setCloseCaseError('');
-    setCloseCaseSuccess('');
-
-    try {
-      setIsClosingCase(true);
-      const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/close`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data?.message || t('Failed to close case.'));
-      }
-
-      setCaseDetails(data);
-      setCloseCaseSuccess(t('Case closed successfully.'));
-    } catch (err) {
-      console.error(err);
-      setCloseCaseError(err.message || t('Failed to close case.'));
-    } finally {
-      setIsClosingCase(false);
-    }
-  };
-
-  const handleAssignClient = async () => {
-    if (!verifiedClient?._id) { // added by cipherNomad
-      setClientAccessError(t('Verify client code before linking.')); // added by cipherNomad
-      return;
+    if (!response.ok) {
+      throw new Error(data?.message || t('Failed to link client to case.'));
     }
 
-    setIsAssigningClient(true);
-    setClientAccessError('');
-    setClientAccessSuccess('');
+    setCaseDetails(data);
+    setClientCode('');
+    setVerifiedClient(null);
+    persistClientCaseLink((verifiedClient.email || verifiedClient.name || '').trim());
+    setClientAccessSuccess(t('Client linked to this case successfully.'));
+  } catch (err) {
+    console.error(err);
+    setClientAccessError(err.message || t('Failed to link client to case.'));
+  } finally {
+    setIsAssigningClient(false);
+  }
+};
 
-    try {
-      let response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/clients`, {
-        method: 'POST',
-        credentials: 'include',
+ const handleVerifyClientCode = async () => {
+  if (!clientCode.trim()) {
+    setClientAccessError(t('Client code, email, or name is required.'));
+    return;
+  }
+
+  setIsVerifyingClient(true);
+  setClientAccessError('');
+  setClientAccessSuccess('');
+  setVerifiedClient(null);
+
+  try {
+    const token = localStorage.getItem("token");
+
+    const response = await fetch(
+      `http://65.0.240.171:5000/api/auth/clients/verify?identifier=${encodeURIComponent(clientCode.trim())}`,
+      {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ // added by cipherNomad
-          clientId: verifiedClient._id, // added by cipherNomad
-          clientCode: verifiedClient.clientCode, // added by cipherNomad
-          clientIdentifier: verifiedClient.email || verifiedClient.name // added by cipherNomad
-        }) // added by cipherNomad
-      });
-
-      const data = await response.json().catch(async () => {
-        const rawText = await response.text().catch(() => '');
-        return { message: rawText };
-      });
-
-      if (!response.ok) { // added by cipherNomad
-        throw new Error(data?.message || t('Failed to link client to case.')); // added by cipherNomad
+          Authorization: `Bearer ${token}`
+        }
       }
+    );
 
-      setCaseDetails(data);
-      setClientCode(''); // added by cipherNomad
-      setVerifiedClient(null); // added by cipherNomad
-      persistClientCaseLink((verifiedClient.email || verifiedClient.name || '').trim()); // added by cipherNomad
-      setClientAccessSuccess(t('Client linked to this case successfully.'));
-    } catch (err) {
-      console.error(err);
-      setClientAccessError(err.message || t('Failed to link client to case.'));
-    } finally {
-      setIsAssigningClient(false);
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        data?.message || t('Client not found for this code, email, or name.')
+      );
     }
-  };
 
-  const handleVerifyClientCode = async () => { // added by cipherNomad
-    if (!clientCode.trim()) { // added by cipherNomad
-      setClientAccessError(t('Client code, email, or name is required.')); // added by cipherNomad
-      return; // added by cipherNomad
-    } // added by cipherNomad
-    setIsVerifyingClient(true); // added by cipherNomad
-    setClientAccessError(''); // added by cipherNomad
-    setClientAccessSuccess(''); // added by cipherNomad
-    setVerifiedClient(null); // added by cipherNomad
-    try { // added by cipherNomad
-      const response = await fetch(`http://65.0.240.171:5000/api/auth/clients/verify?identifier=${encodeURIComponent(clientCode.trim())}`, { // added by cipherNomad
-        method: 'GET', // added by cipherNomad
-        credentials: 'include' // added by cipherNomad
-      }); // added by cipherNomad
-      const data = await response.json().catch(() => ({})); // added by cipherNomad
-      if (!response.ok) { // added by cipherNomad
-        throw new Error(data?.message || t('Client not found for this code, email, or name.')); // added by cipherNomad
-      } // added by cipherNomad
-      setVerifiedClient(data); // added by cipherNomad
-      setClientAccessSuccess(t('Client verified successfully.')); // added by cipherNomad
-    } catch (err) { // added by cipherNomad
-      setClientAccessError(err.message || t('Client verification failed.')); // added by cipherNomad
-    } finally { // added by cipherNomad
-      setIsVerifyingClient(false); // added by cipherNomad
-    } // added by cipherNomad
-  }; // added by cipherNomad
+    setVerifiedClient(data);
+    setClientAccessSuccess(t('Client verified successfully.'));
 
+  } catch (err) {
+    console.error(err);
+    setClientAccessError(err.message || t('Client verification failed.'));
+  } finally {
+    setIsVerifyingClient(false);
+  }
+};
   const getLatestTimelineEvent = (type) =>
     caseDetails?.timeline?.some((entry) => entry.type === type);
 
@@ -929,8 +973,8 @@ function CaseViewPage() {
                     </span>
                   )
                   : isTranslating
-                  ? t('Translating...')
-                  : translatedSummary || caseDetails.aiSummary || t('Pending analysis...')}
+                    ? t('Translating...')
+                    : translatedSummary || caseDetails.aiSummary || t('Pending analysis...')}
               </p>
             </div>
 
@@ -1207,20 +1251,20 @@ function CaseViewPage() {
 
             <div className="case-card">
               <h3>{t('Case Workflow')}</h3>
-                <div className="case-progress-list">
-                  {steps.map((step, index) => {
-                    const StepIcon = step.icon;
-                    const stateClass = getWorkflowStepState(step.key); // added by cipherNomad
+              <div className="case-progress-list">
+                {steps.map((step, index) => {
+                  const StepIcon = step.icon;
+                  const stateClass = getWorkflowStepState(step.key); // added by cipherNomad
 
-                    return (
-                      <div key={step.key} className={`case-progress-item ${stateClass}`}>
-                        <div className="case-progress-marker">
-                          {stateClass === 'done' ? <FaCheck /> : stateClass === 'attention' ? <FaExclamationTriangle /> : <StepIcon />} {/* added by cipherNomad */}
-                        </div>
-                        <span className="case-progress-text">{step.label}</span>
+                  return (
+                    <div key={step.key} className={`case-progress-item ${stateClass}`}>
+                      <div className="case-progress-marker">
+                        {stateClass === 'done' ? <FaCheck /> : stateClass === 'attention' ? <FaExclamationTriangle /> : <StepIcon />} {/* added by cipherNomad */}
                       </div>
-                    );
-                  })}
+                      <span className="case-progress-text">{step.label}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

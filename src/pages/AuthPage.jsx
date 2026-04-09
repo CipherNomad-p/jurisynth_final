@@ -22,7 +22,6 @@ function AuthPage() {
     try {
       const res = await fetch('http://65.0.240.171:5000/api/protected', {
         method: 'GET',
-        credentials: 'include',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         }
@@ -51,7 +50,6 @@ function AuthPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        credentials: 'include'
       });
 
       const data = await response.json();
@@ -70,11 +68,7 @@ function AuthPage() {
         }
 
         // VERIFY SESSION BEFORE PROCEEDING
-        const isValidSession = await verifySession(data?.token);
 
-        if (!isValidSession) {
-          throw new Error('Session not established. Please try again.');
-        }
 
         localStorage.setItem('loggedInUserName', data.name);
         localStorage.setItem('userEmail', data.email || email);
@@ -101,7 +95,6 @@ function AuthPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: credentialResponse.credential }),
-        credentials: 'include'
       });
 
       const data = await response.json();
@@ -115,11 +108,7 @@ function AuthPage() {
       }
 
       // VERIFY SESSION
-      const isValidSession = await verifySession(data?.token);
 
-      if (!isValidSession) {
-        throw new Error('Session not established. Please try again.');
-      }
 
       localStorage.setItem('loggedInUserName', data.name);
       localStorage.setItem('userEmail', data.email || '');
@@ -127,7 +116,13 @@ function AuthPage() {
       localStorage.setItem('userId', data._id);
       localStorage.setItem('isAuthenticated', 'true');
       if (data.clientCode) localStorage.setItem('clientCode', data.clientCode); // added by cipherNomad
+      if (data?.token) {
+        console.log("TOKEN FROM BACKEND:", data.token);
 
+        localStorage.setItem('token', data.token);
+
+        console.log("TOKEN SAVED:", localStorage.getItem('token'));
+      }
       navigate('/dashboard');
 
     } catch (err) {

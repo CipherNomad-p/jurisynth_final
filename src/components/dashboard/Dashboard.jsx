@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import DashboardLayout from './DashboardLayout';
-import { 
-  FaPlus, FaFileUpload, FaMicrophoneAlt, 
-  FaCheckCircle, FaExclamationTriangle, FaArchive, FaTimes, FaTrash 
+import {
+  FaPlus, FaFileUpload, FaMicrophoneAlt,
+  FaCheckCircle, FaExclamationTriangle, FaArchive, FaTimes, FaTrash
 } from 'react-icons/fa';
 import { MdOutlineSummarize } from 'react-icons/md';
 
@@ -76,9 +76,13 @@ function Dashboard() {
 
     const fetchCases = async () => {
       try {
+        const token = localStorage.getItem("token");
+
         const response = await fetch('http://65.0.240.171:5000/api/cases', {
           method: 'GET',
-          credentials: 'include'
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
         });
 
         const data = await response.json();
@@ -109,12 +113,14 @@ function Dashboard() {
     setIsSubmitting(true);
 
     try {
+      const token = localStorage.getItem("token");
+
       const response = await fetch('http://65.0.240.171:5000/api/cases', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
         },
-        credentials: 'include',
         body: JSON.stringify(formData)
       });
 
@@ -141,9 +147,13 @@ function Dashboard() {
     setDeleteError(null);
 
     try {
+      const token = localStorage.getItem("token");
+
       const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
         method: 'DELETE',
-        credentials: 'include'
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
 
       if (!response.ok) {
@@ -181,7 +191,7 @@ function Dashboard() {
   };
 
   const getStatusDisplay = (status) => {
-    switch(status) {
+    switch (status) {
       case 'ready':
         return { text: t('Ready'), icon: <FaCheckCircle />, cssClass: 'ready' };
       case 'closed':
@@ -261,9 +271,9 @@ function Dashboard() {
 
       <section className="dashboard-section">
         <h2>{t('Recent Cases')}</h2>
-        
+
         {isLoading && <p style={{ color: 'var(--text-secondary)' }}>{t('Loading your cases...')}</p>}
-        
+
         {error && (
           <div style={{ color: '#F87171', background: 'rgba(248, 113, 113, 0.1)', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
             <strong>{t('Error')}:</strong> {error}
@@ -295,11 +305,11 @@ function Dashboard() {
                 <div className="case-card" key={caseItem._id}>
                   <h4>{caseItem.title}</h4>
                   <p>{t('Case')} #{caseItem.caseNumber}</p>
-                  
+
                   <span className={`case-status ${statusDisplay.cssClass}`}>
                     {statusDisplay.icon} {statusDisplay.text}
                   </span>
-                  
+
                   <p className="case-activity">
                     {latestEvent
                       ? latestEvent.message

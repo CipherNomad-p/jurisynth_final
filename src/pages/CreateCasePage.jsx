@@ -25,12 +25,14 @@ function CreateCasePage() {
     setLoading(true);
 
     try {
+      const token = localStorage.getItem("token");
+
       const res = await fetch("http://65.0.240.171:5000/api/cases", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
         },
-        credentials: "include",
         body: JSON.stringify({
           title,
           caseNumber,
