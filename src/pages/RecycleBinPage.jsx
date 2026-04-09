@@ -10,12 +10,19 @@ function RecycleBinPage() {
 
   const userName = localStorage.getItem('loggedInUserName') || 'Guest';
   const userInitials = userName.split(' ').map((n) => n[0]).join('').toUpperCase() || 'G';
+  const token = localStorage.getItem('token');
+
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
   const fetchCases = async () => {
     try {
+      if (!token) {
+        throw new Error("No token found. User not authenticated.");
+      }
+
       const response = await fetch('http://65.0.240.171:5000/api/cases', {
         method: 'GET',
-        credentials: 'include'
+        headers: { ...authHeaders }
       });
 
       const data = await response.json();
@@ -55,9 +62,9 @@ function RecycleBinPage() {
     try {
       let response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/files/restore`, {
         method: 'POST',
-        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...authHeaders
         },
         body: JSON.stringify({ fileName, source })
       });
@@ -107,9 +114,9 @@ function RecycleBinPage() {
 
         response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
           method: 'PUT',
-          credentials: 'include',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...authHeaders
           },
           body: JSON.stringify({
             [source]: updatedSourceFiles,
@@ -136,7 +143,9 @@ function RecycleBinPage() {
             )
         )
       );
+
       await fetchCases();
+
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to restore file.');
@@ -152,6 +161,7 @@ function RecycleBinPage() {
       ...file
     }))
   );
+
   const storedDeletedFiles = readStoredDeletedFiles();
   const deletedFiles = [...backendDeletedFiles];
 

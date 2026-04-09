@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles.css';
 import { apiFetch } from '../services/api';
@@ -15,14 +15,38 @@ const SettingsPage = () => {
   const [isSimulation, setIsSimulation] = useState(true);
   const [selectedModel, setSelectedModel] = useState('Gemini 2.5 Flash');
   const [detailLevel, setDetailLevel] = useState('Comprehensive');
-  const [loading, setLoading] = useState(false);
 
-  const handleClose = () => {
-    navigate('/dashboard');
-  };
+  const [loading, setLoading] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [statusMessage, setStatusMessage] = useState('');
+
+  const handleClose = () => navigate('/dashboard');
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await apiFetch('/api/users/settings', { method: 'GET' });
+        const data = await res.json();
+
+        if (res.ok && data) {
+          setSelectedModel(data.modelPreference || 'Gemini 2.5 Flash');
+          setDetailLevel(data.analysisDepth || 'Comprehensive');
+          setIsSimulation(data.simulationMode ?? true);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingSettings(false);
+      }
+    };
+
+    loadSettings();
+  }, []);
 
   const handleSaveSettings = async () => {
     setLoading(true);
+    setStatusMessage('');
+
     try {
       const payload = {
         modelPreference: selectedModel,
@@ -30,176 +54,158 @@ const SettingsPage = () => {
         simulationMode: isSimulation
       };
 
-      await apiFetch('/api/users/settings', {
+      const res = await apiFetch('/api/users/settings', {
         method: 'PATCH',
         body: JSON.stringify(payload)
       });
 
-      alert(t("Settings saved successfully!"));
+      if (!res.ok) throw new Error("Failed");
+
+      setStatusMessage("✅ Saved successfully");
     } catch (err) {
-      console.error("Settings Sync Error:", err);
-      alert(`${t("Error")}: ${err.message}`);
+      setStatusMessage("❌ Failed to save");
     } finally {
       setLoading(false);
     }
   };
+
+  const handleReset = () => {
+    setSelectedModel('Gemini 2.5 Flash');
+    setDetailLevel('Comprehensive');
+    setIsSimulation(true);
+    setStatusMessage("⚠️ Reset (not saved)");
+  };
+
+  const renderCard = (title, desc, content) => (
+    <div className="settings-card">
+      <div className="settings-card-header">
+        <h3>{title}</h3>
+        {desc && <p className="settings-desc">{desc}</p>}
+      </div>
+      <div className="settings-card-body">{content}</div>
+    </div>
+  );
+
   const renderContent = () => {
+    if (loadingSettings) return <p>Loading...</p>;
+
     switch (activeTab) {
       case 'ai':
-        return (
-          <div className="settings-section">
-            <h3>{t("AI Orchestration")}</h3>
-
+        return renderCard(
+          "AI Configuration",
+          "Control how AI analyzes and processes your cases",
+          <>
             <div className="form-group">
-              <label>{t("Model Selection")}</label>
-              <select
-                className="standard-input"
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-              >
-                <option value="Gemini 1.5 Pro">
-                  {t("Gemini 1.5 Pro (High Precision)")}
-                </option>
-                <option value="Gemini 2.5 Flash">
-                  {t("Gemini 2.5 Flash (Speed Optimized)")}
-                </option>
+              <label>Model</label>
+              <select className="standard-input" value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
+                <option value="Gemini 1.5 Pro">High Precision</option>
+                <option value="Gemini 2.5 Flash">Fast & Optimized</option>
               </select>
             </div>
 
             <div className="form-group">
-              <label>{t("Analysis Depth")}</label>
-              <select
-                className="standard-input"
-                value={detailLevel}
-                onChange={(e) => setDetailLevel(e.target.value)}
-              >
-                <option value="Concise">
-                  {t("Concise (Fast Summary)")}
-                </option>
-                <option value="Comprehensive">
-                  {t("Comprehensive (Deep Legal Analysis)")}
-                </option>
+              <label>Analysis Depth</label>
+              <select className="standard-input" value={detailLevel} onChange={(e) => setDetailLevel(e.target.value)}>
+                <option value="Concise">Fast Summary</option>
+                <option value="Comprehensive">Deep Analysis</option>
               </select>
             </div>
-
-            <div className="settings-footer-actions">
-              <button className="cancel-btn-link" onClick={handleClose}>
-                {t("Cancel")}
-              </button>
-
-              <button className="save-btn" onClick={handleSaveSettings} disabled={loading}>
-                {loading ? t("Saving...") : t("Save AI Configuration")}
-              </button>
-            </div>
-          </div>
+          </>
         );
 
       case 'security':
-        return (
-          <div className="settings-section">
-            <h3>{t("Security & Auth")}</h3>
-
-            <div className="form-group">
-              <label>{t("Authentication Token")}</label>
-              <code className="token-display">
-                {localStorage.getItem('token')
-                  ? t("Active Session (JWT Detected)")
-                  : t("No Token Found")}
-              </code>
+        return renderCard(
+          "Security",
+          "Manage your session and authentication",
+          <>
+            <div className="info-box">
+              <p><strong>User:</strong> {localStorage.getItem('loggedInUserName')}</p>
+              <p><strong>Email:</strong> {localStorage.getItem('userEmail')}</p>
+              <p><strong>Status:</strong> Active Session</p>
             </div>
 
             <button
               className="danger-btn"
               onClick={() => {
-                localStorage.removeItem('token');
-                localStorage.removeItem('loggedInUserName');
-                localStorage.removeItem('userEmail');
-                localStorage.removeItem('userRole');
-                localStorage.removeItem('userId');
-                localStorage.removeItem('isAuthenticated');
+                localStorage.clear();
                 window.location.reload();
               }}
             >
-              {t("Log Out & Revoke Token")}
+              Log Out
             </button>
-          </div>
+          </>
         );
 
       default:
-        return (
-          <div className="settings-section">
-            <h3>{t("General Settings")}</h3>
+        return renderCard(
+          "General Settings",
+          "Basic system behavior configuration",
+          <>
+            <div className="toggle-row">
+              <div>
+                <label>Simulation Mode</label>
+                <p className="settings-desc">Run without backend interaction</p>
+              </div>
 
-            <div className="form-group checkbox-group">
-              <label>{t("Simulation Mode")}</label>
               <input
                 type="checkbox"
                 checked={isSimulation}
                 onChange={() => setIsSimulation(!isSimulation)}
               />
-              <span className="hint">
-                {t("Run UI tests without contacting the live backend.")}
-              </span>
             </div>
-
-            <div className="settings-footer-actions">
-              <button className="cancel-btn-link" onClick={handleClose}>
-                {t("Cancel")}
-              </button>
-
-              <button className="save-btn" onClick={handleSaveSettings} disabled={loading}>
-                {loading ? t("Saving...") : t("Save General Settings")}
-              </button>
-            </div>
-          </div>
+          </>
         );
     }
   };
 
   return (
-    <div className="settings-container">
+    <div className="settings-container enhanced">
 
       <aside className="settings-sidebar">
         <div className="sidebar-brand">Jurisynth</div>
 
-        <button
-          className={activeTab === 'general' ? 'active' : ''}
-          onClick={() => setActiveTab('general')}
-        >
-          {t("General")}
+        <button className={activeTab === 'general' ? 'active' : ''} onClick={() => setActiveTab('general')}>
+          General
         </button>
 
-        <button
-          className={activeTab === 'ai' ? 'active' : ''}
-          onClick={() => setActiveTab('ai')}
-        >
-          {t("AI & Search")}
+        <button className={activeTab === 'ai' ? 'active' : ''} onClick={() => setActiveTab('ai')}>
+          AI
         </button>
 
-        <button
-          className={activeTab === 'security' ? 'active' : ''}
-          onClick={() => setActiveTab('security')}
-        >
-          {t("Security")}
+        <button className={activeTab === 'security' ? 'active' : ''} onClick={() => setActiveTab('security')}>
+          Security
         </button>
       </aside>
 
       <main className="settings-content">
         <div className="settings-header-nav">
-          <h2>{t("Settings")}</h2>
+          <h2>Settings</h2>
 
-          <button
-            className="close-btn-top"
-            onClick={handleClose}
-            title={t("Back to Dashboard")}
-          >
-            &times;
+          <button className="close-btn-top" onClick={handleClose}>
+            ×
           </button>
         </div>
 
         {renderContent()}
-      </main>
 
+        {/* GLOBAL ACTION BAR */}
+        <div className="settings-action-bar">
+          <div className="left">
+            {statusMessage && <span className="status-text">{statusMessage}</span>}
+          </div>
+
+          <div className="right">
+            <button className="cancel-btn-link" onClick={handleReset}>
+              Reset
+            </button>
+
+            <button className="save-btn" onClick={handleSaveSettings} disabled={loading}>
+              {loading ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </div>
+
+      </main>
     </div>
   );
 };

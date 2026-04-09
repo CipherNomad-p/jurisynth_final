@@ -29,6 +29,9 @@ function GlobalSearchPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const token = localStorage.getItem('token');
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
   useEffect(() => {
     const savedName = localStorage.getItem('loggedInUserName');
     if (savedName) {
@@ -50,10 +53,17 @@ function GlobalSearchPage() {
 
     const timeoutId = setTimeout(async () => {
       try {
+        if (!token) {
+          throw new Error("No token found. User not authenticated.");
+        }
+
         setIsSearching(true);
+
         const casesResponse = await fetch('http://65.0.240.171:5000/api/cases', {
-          credentials: 'include'
+          method: 'GET',
+          headers: { ...authHeaders }
         });
+
         const allCases = await casesResponse.json().catch(() => []);
 
         if (!casesResponse.ok) {
@@ -61,6 +71,7 @@ function GlobalSearchPage() {
         }
 
         const normalizedQuery = query.trim().toLowerCase();
+
         const caseResults = Array.isArray(allCases)
           ? allCases
               .filter((caseItem) => matchesCaseQuery(caseItem, query))
@@ -104,6 +115,7 @@ function GlobalSearchPage() {
           cases: caseResults,
           documents: documentResults
         });
+
       } catch (error) {
         console.error(error);
         setResults({ cases: [], documents: [] });
@@ -131,6 +143,9 @@ function GlobalSearchPage() {
   return (
     <DashboardLayout userName={currentUser.name} userInitials={currentUser.initials} showSearch={false}>
       <div className="search-page-container">
+
+        {/* UI unchanged */}
+
         <section className="search-hero-card">
           <div className="search-hero-copy">
             <span className="search-hero-kicker">Global Search</span>
@@ -155,15 +170,9 @@ function GlobalSearchPage() {
 
           <div className="search-suggestions">
             <span>Quick picks</span>
-            <button type="button" onClick={() => handleSuggestionClick('contract')}>
-              Contract
-            </button>
-            <button type="button" onClick={() => handleSuggestionClick('processing')}>
-              Processing
-            </button>
-            <button type="button" onClick={() => handleSuggestionClick('case')}>
-              Case
-            </button>
+            <button type="button" onClick={() => handleSuggestionClick('contract')}>Contract</button>
+            <button type="button" onClick={() => handleSuggestionClick('processing')}>Processing</button>
+            <button type="button" onClick={() => handleSuggestionClick('case')}>Case</button>
           </div>
         </section>
 
@@ -173,9 +182,7 @@ function GlobalSearchPage() {
           <div className="search-results-list">
             {results.cases.map((result) => (
               <div key={result._id} className="result-snippet-card">
-                <div className="result-icon">
-                  <FaFolderOpen />
-                </div>
+                <div className="result-icon"><FaFolderOpen /></div>
                 <div className="result-content">
                   <Link to={`/case/${result._id}`} className="result-title">
                     <strong>{result.title}</strong>
@@ -188,9 +195,7 @@ function GlobalSearchPage() {
 
             {results.documents.map((result) => (
               <div key={result.id} className="result-snippet-card">
-                <div className="result-icon">
-                  <FaFilePdf />
-                </div>
+                <div className="result-icon"><FaFilePdf /></div>
                 <div className="result-content">
                   <Link to={`/case/${result.caseId}`} className="result-title">
                     <strong>{result.name}</strong>
@@ -200,9 +205,9 @@ function GlobalSearchPage() {
                 </div>
               </div>
             ))}
-            
+
             {isSearching && <p className="loading-text">Searching...</p>}
-            
+
             {!isSearching && totalResults === 0 && query !== '' && (
               <div className="search-empty-state">
                 <FaSearch />

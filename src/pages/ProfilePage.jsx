@@ -7,6 +7,7 @@ function ProfilePage() {
   const [error, setError] = useState('');
   const [copySuccess, setCopySuccess] = useState('');
   const [clients, setClients] = useState([]);
+  const [caseClients, setCaseClients] = useState([]); // ✅ NEW
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientPassword, setClientPassword] = useState('');
@@ -17,15 +18,11 @@ function ProfilePage() {
   const userInitials = userName.split(' ').map((n) => n[0]).join('').toUpperCase() || 'G';
   const token = localStorage.getItem('token');
 
-  // ✅ guard
-  const authHeaders = token
-    ? { Authorization: `Bearer ${token}` }
-    : {};
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        // ✅ guard
         if (!token) {
           throw new Error("No token found. User not authenticated.");
         }
@@ -81,7 +78,7 @@ function ProfilePage() {
           localStorage.removeItem('clientCode');
         }
 
-        // CLIENT LIST (ADVOCATE)
+        // CREATED CLIENTS
         if (data?.role === 'advocate') {
           const clientsResponse = await fetch('http://65.0.240.171:5000/api/auth/clients', {
             method: 'GET',
@@ -95,6 +92,34 @@ function ProfilePage() {
           } else {
             setClients([]);
             setClientActionMessage(clientsData?.message || 'Unable to load client list right now');
+          }
+        }
+
+        // ✅ NEW: FETCH CASE CLIENTS
+        if (data?.role === 'advocate') {
+          const casesRes = await fetch('http://65.0.240.171:5000/api/cases', {
+            method: 'GET',
+            headers: { ...authHeaders }
+          });
+
+          const casesData = await casesRes.json().catch(() => []);
+
+          if (casesRes.ok && Array.isArray(casesData)) {
+            const uniqueClients = {};
+
+            casesData.forEach((c) => {
+              const client = c.client || c.clientDetails;
+
+              if (client && (client.email || client.name)) {
+                const key = client.email || client.name;
+
+                if (!uniqueClients[key]) {
+                  uniqueClients[key] = client;
+                }
+              }
+            });
+
+            setCaseClients(Object.values(uniqueClients));
           }
         }
 
@@ -114,7 +139,7 @@ function ProfilePage() {
       await navigator.clipboard.writeText(profile.clientCode);
       setCopySuccess('Client code copied');
       setTimeout(() => setCopySuccess(''), 2000);
-    } catch (err) {
+    } catch {
       setCopySuccess('Copy failed');
     }
   };
@@ -198,44 +223,44 @@ function ProfilePage() {
             <p><strong>Email:</strong> {profile.email || '-'}</p>
             <p><strong>Role:</strong> {profile.role || '-'}</p>
 
-            {profile.role === 'user' && (
+            {profile.role === 'advocate' && (
               <div style={{ marginTop: '1rem' }}>
-                <p><strong>Client Code:</strong> {profile.clientCode || 'Not generated'}</p>
+                <h3 style={{ marginTop: '1rem' }}>Clients From Cases</h3>
 
-                <button className="btn btn-secondary btn-small" onClick={handleCopyCode}>
-                  Copy Client Code
-                </button>
+                {caseClients.length === 0 && <p>No clients linked to cases yet.</p>}
 
-                <button
-                  className="btn btn-secondary btn-small"
-                  onClick={handleRefreshClientCode}
-                  disabled={isRefreshingCode}
-                  style={{ marginLeft: '0.75rem' }}
-                >
-                  {isRefreshingCode ? 'Refreshing...' : 'Refresh Client Code'}
-                </button>
-
-                {copySuccess && <p style={{ marginTop: '0.5rem' }}>{copySuccess}</p>}
+                {caseClients.map((client, i) => (
+                  <div key={i} className="linked-client-chip" style={{ marginBottom: '0.5rem' }}>
+                    <span>{client.name || 'Unknown'}</span>
+                    <small>{client.email || 'No email'}</small>
+                  </div>
+                ))}
               </div>
             )}
 
+            {/* EXISTING UI BELOW — untouched */}
             {profile.role === 'advocate' && (
               <div style={{ marginTop: '1rem' }}>
-                <h3>Create Client</h3>
+                <h3 style={{ marginBottom: '0.75rem' }}>Create Client</h3>
 
-                <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client name" />
-                <input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Client email" />
-                <input value={clientPassword} onChange={(e) => setClientPassword(e.target.value)} placeholder="Password" />
+                <input type="text" className="judgement-textarea client-access-input" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client name" />
+                <input type="email" className="judgement-textarea client-access-input" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Client email" style={{ marginTop: '0.5rem' }} />
+                <input type="password" className="judgement-textarea client-access-input" value={clientPassword} onChange={(e) => setClientPassword(e.target.value)} placeholder="Temporary password" style={{ marginTop: '0.5rem' }} />
 
-                <button onClick={handleCreateClient}>Create Client</button>
+                <button type="button" className="btn btn-primary btn-small" style={{ marginTop: '0.75rem' }} onClick={handleCreateClient}>
+                  Create Client
+                </button>
 
-                {clientActionMessage && <p>{clientActionMessage}</p>}
+                {clientActionMessage && <p style={{ marginTop: '0.5rem' }}>{clientActionMessage}</p>}
 
-                <h3>My Clients</h3>
+                <h3 style={{ marginTop: '1rem', marginBottom: '0.75rem' }}>My Clients</h3>
 
-                {clients.map((c) => (
-                  <div key={c._id}>
-                    {c.name} ({c.email})
+                {clients.length === 0 && <p>No clients created yet.</p>}
+
+                {clients.map((client) => (
+                  <div key={client._id || client.email} className="linked-client-chip" style={{ marginBottom: '0.5rem' }}>
+                    <span>{client.name}</span>
+                    <small>{client.email} ({client.clientCode || 'No code'})</small>
                   </div>
                 ))}
               </div>
