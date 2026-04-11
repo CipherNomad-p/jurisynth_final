@@ -1,5 +1,5 @@
-const API_BASE = "http://65.0.240.171:5000/api/notifications";
-const AUTH_BASE = "http://65.0.240.171:5000/api/auth";
+const API_BASE = "https://api.jurisynth.in/api/notifications";
+const AUTH_BASE = "https://api.jurisynth.in/api/auth";
 
 let notificationsEndpointUnavailable = false;
 

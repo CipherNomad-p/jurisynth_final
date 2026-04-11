@@ -27,7 +27,7 @@ function CreateCasePage() {
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch("http://65.0.240.171:5000/api/cases", {
+      const res = await fetch("https://api.jurisynth.in/api/cases", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

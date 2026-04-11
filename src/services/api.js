@@ -1,4 +1,4 @@
-const API_BASE = 'http://65.0.240.171:5000';
+const API_BASE = 'https://api.jurisynth.in';
 
 export const apiFetch = async (url, options = {}) => {
     const token = localStorage.getItem('token');

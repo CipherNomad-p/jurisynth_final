@@ -1,4 +1,4 @@
-const API_URL = "http://65.0.240.171:8000/translate";
+const API_URL = "https://api.jurisynth.in:8000/translate";
 
 let activeController = null;
 

@@ -16,11 +16,11 @@ function AuthPage() {
   const [successMsg, setSuccessMsg] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const API_URL = 'http://65.0.240.171:5000/api/auth';
+  const API_URL = 'https://api.jurisynth.in/api/auth';
 
   const verifySession = async (token) => {
     try {
-      const res = await fetch('http://65.0.240.171:5000/api/protected', {
+      const res = await fetch('https://api.jurisynth.in/api/protected', {
         method: 'GET',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {})

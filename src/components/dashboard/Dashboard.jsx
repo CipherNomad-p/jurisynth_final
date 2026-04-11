@@ -78,7 +78,7 @@ function Dashboard() {
       try {
         const token = localStorage.getItem("token");
 
-        const response = await fetch('http://65.0.240.171:5000/api/cases', {
+        const response = await fetch('https://api.jurisynth.in/api/cases', {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`
@@ -115,7 +115,7 @@ function Dashboard() {
     try {
       const token = localStorage.getItem("token");
 
-      const response = await fetch('http://65.0.240.171:5000/api/cases', {
+      const response = await fetch('https://api.jurisynth.in/api/cases', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -149,7 +149,7 @@ function Dashboard() {
     try {
       const token = localStorage.getItem("token");
 
-      const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
+      const response = await fetch(`https://api.jurisynth.in/api/cases/${caseId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`

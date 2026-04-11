@@ -20,7 +20,7 @@ function RecycleBinPage() {
         throw new Error("No token found. User not authenticated.");
       }
 
-      const response = await fetch('http://65.0.240.171:5000/api/cases', {
+      const response = await fetch('https://api.jurisynth.in/api/cases', {
         method: 'GET',
         headers: { ...authHeaders }
       });
@@ -60,7 +60,7 @@ function RecycleBinPage() {
 
   const handleRestore = async (caseId, fileName, source) => {
     try {
-      let response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/files/restore`, {
+      let response = await fetch(`https://api.jurisynth.in/api/cases/${caseId}/files/restore`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,7 +112,7 @@ function RecycleBinPage() {
           }
         ];
 
-        response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
+        response = await fetch(`https://api.jurisynth.in/api/cases/${caseId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

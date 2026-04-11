@@ -167,7 +167,7 @@ function CaseViewPage() {
 
   const fetchCaseData = useCallback(async () => {
     try {
-      const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
+      const response = await fetch(`https://api.jurisynth.in/api/cases/${caseId}`, {
         method: 'GET',
         headers: getAuthHeaders()
       });
@@ -189,7 +189,7 @@ function CaseViewPage() {
   useEffect(() => {
     const syncSessionRole = async () => {
       try {
-        const response = await fetch('http://65.0.240.171:5000/api/protected', {
+        const response = await fetch('https://api.jurisynth.in/api/protected', {
           method: 'GET',
           headers: getAuthHeaders()
         });
@@ -294,7 +294,7 @@ function CaseViewPage() {
     selectedFiles.forEach((file) => formData.append('files', file));
 
     try {
-      const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/documents`, {
+      const response = await fetch(`https://api.jurisynth.in/api/cases/${caseId}/documents`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: formData
@@ -326,7 +326,7 @@ function CaseViewPage() {
         return currentName === targetName ? { ...item, priority } : item;
       });
 
-      const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
+      const response = await fetch(`https://api.jurisynth.in/api/cases/${caseId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -351,7 +351,7 @@ function CaseViewPage() {
     setIsAnalyzing(true);
     setSummaryError('');
     try {
-      const response = await fetch(`http://65.0.240.171:5000/api/summary/${caseId}`, {
+      const response = await fetch(`https://api.jurisynth.in/api/summary/${caseId}`, {
         method: 'POST',
         headers: getAuthHeaders()
       });
@@ -389,7 +389,7 @@ const handleEvidenceUploadSubmit = async () => {
     const formData = new FormData();
     formData.append('file', selectedEvidenceFile);
 
-    const uploadResponse = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/documents`, {
+    const uploadResponse = await fetch(`https://api.jurisynth.in/api/cases/${caseId}/documents`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: formData
@@ -420,7 +420,7 @@ const handleEvidenceUploadSubmit = async () => {
 
     uploadedDocuments.splice(resolvedIndex, 1);
 
-    const updateResponse = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
+    const updateResponse = await fetch(`https://api.jurisynth.in/api/cases/${caseId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -470,7 +470,7 @@ const handleDeleteFile = async (source, fileName) => {
 
     const targetFile = fileIndex >= 0 ? existingFiles[fileIndex] : null;
 
-    let response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/files/delete`, {
+    let response = await fetch(`https://api.jurisynth.in/api/cases/${caseId}/files/delete`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -511,7 +511,7 @@ const handleDeleteFile = async (source, fileName) => {
         }
       ];
 
-      response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}`, {
+      response = await fetch(`https://api.jurisynth.in/api/cases/${caseId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -570,7 +570,7 @@ const handleSubmitJudgement = async () => {
   setJudgementSuccess('');
 
   try {
-    const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/judgement`, {
+    const response = await fetch(`https://api.jurisynth.in/api/cases/${caseId}/judgement`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -610,7 +610,7 @@ const handleCloseCase = async () => {
   try {
     setIsClosingCase(true);
 
-    const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/close`, {
+    const response = await fetch(`https://api.jurisynth.in/api/cases/${caseId}/close`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -642,7 +642,7 @@ const handleAssignClient = async () => {
   setClientAccessSuccess('');
 
   try {
-    const response = await fetch(`http://65.0.240.171:5000/api/cases/${caseId}/clients`, {
+    const response = await fetch(`https://api.jurisynth.in/api/cases/${caseId}/clients`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -692,7 +692,7 @@ const handleAssignClient = async () => {
     const token = localStorage.getItem("token");
 
     const response = await fetch(
-      `http://65.0.240.171:5000/api/auth/clients/verify?identifier=${encodeURIComponent(clientCode.trim())}`,
+      `https://api.jurisynth.in/api/auth/clients/verify?identifier=${encodeURIComponent(clientCode.trim())}`,
       {
         method: 'GET',
         headers: {

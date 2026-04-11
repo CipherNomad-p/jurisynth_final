@@ -27,7 +27,7 @@ function AllCasesPage() {
         return;
       }
 
-      const res = await fetch("http://65.0.240.171:5000/api/cases", {
+      const res = await fetch("https://api.jurisynth.in/api/cases", {
         method: "GET",
         // ❌ REMOVED: credentials: "include"
         headers: {
@@ -92,7 +92,7 @@ function AllCasesPage() {
         </div>
         <br />
         <a
-          href={`http://65.0.240.171:5000/${(file.filePath || file.path)?.replace(/\\/g, "/")}`}
+          href={`https://api.jurisynth.in/${(file.filePath || file.path)?.replace(/\\/g, "/")}`}
           target="_blank"
           rel="noreferrer"
           style={{

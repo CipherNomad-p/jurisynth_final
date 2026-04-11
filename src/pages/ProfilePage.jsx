@@ -27,7 +27,7 @@ function ProfilePage() {
           throw new Error("No token found. User not authenticated.");
         }
 
-        let response = await fetch('http://65.0.240.171:5000/api/auth/me', {
+        let response = await fetch('https://api.jurisynth.in/api/auth/me', {
           method: 'GET',
           headers: { ...authHeaders }
         });
@@ -35,7 +35,7 @@ function ProfilePage() {
         let data = await response.json().catch(() => ({}));
 
         if (response.status === 404) {
-          response = await fetch('http://65.0.240.171:5000/api/protected', {
+          response = await fetch('https://api.jurisynth.in/api/protected', {
             method: 'GET',
             headers: { ...authHeaders }
           });
@@ -58,7 +58,7 @@ function ProfilePage() {
 
         // CLIENT CODE LOGIC
         if (data?.role === 'user' && !data?.clientCode) {
-          const ensureResponse = await fetch('http://65.0.240.171:5000/api/auth/client-code/ensure', {
+          const ensureResponse = await fetch('https://api.jurisynth.in/api/auth/client-code/ensure', {
             method: 'POST',
             headers: { ...authHeaders }
           });
@@ -80,7 +80,7 @@ function ProfilePage() {
 
         // CREATED CLIENTS
         if (data?.role === 'advocate') {
-          const clientsResponse = await fetch('http://65.0.240.171:5000/api/auth/clients', {
+          const clientsResponse = await fetch('https://api.jurisynth.in/api/auth/clients', {
             method: 'GET',
             headers: { ...authHeaders }
           });
@@ -97,7 +97,7 @@ function ProfilePage() {
 
         // ✅ NEW: FETCH CASE CLIENTS
         if (data?.role === 'advocate') {
-          const casesRes = await fetch('http://65.0.240.171:5000/api/cases', {
+          const casesRes = await fetch('https://api.jurisynth.in/api/cases', {
             method: 'GET',
             headers: { ...authHeaders }
           });
@@ -148,7 +148,7 @@ function ProfilePage() {
     try {
       setClientActionMessage('');
 
-      const response = await fetch('http://65.0.240.171:5000/api/auth/clients', {
+      const response = await fetch('https://api.jurisynth.in/api/auth/clients', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -183,7 +183,7 @@ function ProfilePage() {
       setIsRefreshingCode(true);
       setError('');
 
-      const response = await fetch('http://65.0.240.171:5000/api/auth/client-code/ensure', {
+      const response = await fetch('https://api.jurisynth.in/api/auth/client-code/ensure', {
         method: 'POST',
         headers: { ...authHeaders }
       });

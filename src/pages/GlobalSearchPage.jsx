@@ -59,7 +59,7 @@ function GlobalSearchPage() {
 
         setIsSearching(true);
 
-        const casesResponse = await fetch('http://65.0.240.171:5000/api/cases', {
+        const casesResponse = await fetch('https://api.jurisynth.in/api/cases', {
           method: 'GET',
           headers: { ...authHeaders }
         });
