@@ -29,6 +29,9 @@ connectDB().then(async () => {
 
 const app = express();
 
+// ✅ ADD (important for secure cookies behind proxy)
+app.set("trust proxy", 1);
+
 // Security
 app.use(
   helmet({
@@ -44,9 +47,23 @@ app.use(morgan("dev"));
 app.use(cookieParser());
 
 /* ===================== FIXED CORS ===================== */
+const allowedOrigins = [
+  "https://jurisynth.in",
+  "https://www.jurisynth.in",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://d2xd94u8yp742d.cloudfront.net", // ✅ ADDED
+];
+
 app.use(
   cors({
-    origin: ["https://jurisynth.in"], // ✅ FIXED
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
   })
@@ -117,9 +134,9 @@ app.patch(
 app.post("/api/auth/logout", (req, res) => {
   res.cookie("token", "", {
     httpOnly: true,
-    secure: true,          // ✅ FIXED
+    secure: true,
     expires: new Date(0),
-    sameSite: "None",      // ✅ FIXED
+    sameSite: "None",
   });
 
   res.status(200).json({ message: "Session revoked" });
