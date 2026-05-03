@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, Form
 import uuid
 import os
 
@@ -32,7 +32,11 @@ async def transcribe(file: UploadFile = File(...)):
 
 
 @router.post("/transcribe")
-async def transcribe_and_translate(audio: UploadFile = File(...)):
+async def transcribe_and_translate(
+    audio: UploadFile = File(...),
+    language: str = Form("auto"),
+    target: str = Form("en"),
+):
     file_id = str(uuid.uuid4())
 
     raw_path = f"{TEMP_DIR}/{file_id}_raw"
@@ -43,14 +47,18 @@ async def transcribe_and_translate(audio: UploadFile = File(...)):
 
     normalize_audio(raw_path, processed_path)
 
-    transcript = run_whisper(processed_path, mode="transcribe", language="auto")
-    translation = run_whisper(processed_path, mode="translate", language="auto")
+    transcript = run_whisper(processed_path, mode="transcribe", language=language)
+
+    # whisper -tr only translates to English; skip for same-language or non-English targets
+    translation = ""
+    if target == "en" and language != "en":
+        translation = run_whisper(processed_path, mode="translate", language=language)
 
     os.remove(raw_path)
     os.remove(processed_path)
 
     return {
         "transcript": transcript,
-        "language": "auto",
+        "language": language,
         "translation": translation,
     }

@@ -4310,6 +4310,65 @@ table td .btn-small:hover {
   min-height: 250px;
 }
 
+.audio-lang-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 16px 18px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 18px;
+}
+
+.audio-lang-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.audio-lang-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  min-width: 112px;
+}
+
+.audio-lang-pill {
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.audio-lang-pill:hover {
+  border-color: rgba(125, 211, 252, 0.45);
+  color: #7dd3fc;
+}
+
+.audio-lang-pill.active {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: rgba(125, 211, 252, 0.55);
+  color: #7dd3fc;
+  font-weight: 600;
+}
+
+.audio-lang-note {
+  font-weight: 400;
+  opacity: 0.6;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.74rem;
+}
+
 @media (max-width: 900px) {
   .dashboard-layout-topbar {
     flex-direction: column;
