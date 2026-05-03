@@ -20,8 +20,8 @@ def run_whisper(file_path: str, mode: str = "transcribe", language: str = "auto"
     ]
 
     # --- Language control ---
-    if language != "auto":
-        cmd.extend(["-l", language])
+    # Always pass -l: without it whisper defaults to English regardless of audio
+    cmd.extend(["-l", language])
 
     # --- Translation mode ---
     if mode == "translate":
