@@ -1,4 +1,7 @@
 import subprocess
+import os
+
+from app.utils.audio import split_audio
 
 # --- Paths ---
 MODEL_PATH = "whisper.cpp/models/ggml-base.bin"
@@ -42,6 +45,22 @@ def run_whisper(file_path: str, mode: str = "transcribe", language: str = "auto"
         return result.stderr or "Whisper failed"
 
     return clean_output(result.stdout)
+
+
+def run_whisper_chunked(file_path: str, mode: str = "transcribe", language: str = "auto") -> str:
+    """Split audio into 6-second chunks and concatenate whisper results."""
+    chunks = split_audio(file_path, chunk_seconds=6)
+    if not chunks:
+        return run_whisper(file_path, mode, language)
+
+    parts = []
+    for chunk in chunks:
+        text = run_whisper(chunk, mode, language)
+        if text:
+            parts.append(text)
+        os.remove(chunk)
+
+    return " ".join(parts)
 
 
 def clean_output(output: str) -> str:

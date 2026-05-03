@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, Form
 import uuid
 import os
 
-from app.services.whisper_service import run_whisper
+from app.services.whisper_service import run_whisper_chunked
 from app.utils.audio import normalize_audio
 
 router = APIRouter()   # <-- THIS LINE IS REQUIRED
@@ -47,12 +47,12 @@ async def transcribe_and_translate(
 
     normalize_audio(raw_path, processed_path)
 
-    transcript = run_whisper(processed_path, mode="transcribe", language=language)
+    transcript = run_whisper_chunked(processed_path, mode="transcribe", language=language)
 
     # whisper -tr only translates to English; skip for same-language or non-English targets
     translation = ""
     if target == "en" and language != "en":
-        translation = run_whisper(processed_path, mode="translate", language=language)
+        translation = run_whisper_chunked(processed_path, mode="translate", language=language)
 
     os.remove(raw_path)
     os.remove(processed_path)
