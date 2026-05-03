@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FaMicrophoneAlt, FaSpinner, FaUpload } from 'react-icons/fa';
 
-const ASR_URL = 'https://api.jurisynth.in:8000/transcribe';
+const ASR_URL = 'https://api.jurisynth.in/transcribe';
 
 function AudioTranscriber() {
   const [audioFile, setAudioFile] = useState(null);
