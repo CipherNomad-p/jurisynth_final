@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { FaMicrophoneAlt, FaSpinner, FaUpload } from 'react-icons/fa';
 
+const ASR_URL = 'https://api.jurisynth.in:8000/transcribe';
+
 function AudioTranscriber() {
   const [audioFile, setAudioFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [translation, setTranslation] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = async () => {
@@ -15,23 +18,25 @@ function AudioTranscriber() {
 
     setIsSubmitting(true);
     setError('');
+    setTranscript('');
+    setTranslation('');
 
     try {
       const formData = new FormData();
       formData.append('audio', audioFile);
 
-      const response = await fetch('http://localhost:5000/api/transcribe', {
+      const response = await fetch(ASR_URL, {
         method: 'POST',
-        credentials: 'include',
-        body: formData
+        body: formData,
       });
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data?.message || 'Transcription failed');
+        throw new Error(data?.detail || data?.message || 'Transcription failed');
       }
 
-      setTranscript(data?.text || '');
+      setTranscript(data?.transcript || '');
+      setTranslation(data?.translation || '');
     } catch (err) {
       console.error(err);
       setError(err.message || 'Transcription failed');
@@ -71,12 +76,21 @@ function AudioTranscriber() {
         <span className="audio-file-label">Selected File</span>
         <strong>{audioFile?.name || 'No audio selected yet'}</strong>
       </div>
+      <p className="audio-transcriber-eyebrow" style={{ marginTop: '1rem' }}>Transcript</p>
       <textarea
         className="judgement-textarea audio-output"
         rows="8"
         value={transcript}
         onChange={(e) => setTranscript(e.target.value)}
         placeholder="Transcribed text will appear here..."
+      />
+      <p className="audio-transcriber-eyebrow" style={{ marginTop: '1rem' }}>English Translation</p>
+      <textarea
+        className="judgement-textarea audio-output"
+        rows="8"
+        value={translation}
+        onChange={(e) => setTranslation(e.target.value)}
+        placeholder="English translation will appear here..."
       />
     </div>
   );
